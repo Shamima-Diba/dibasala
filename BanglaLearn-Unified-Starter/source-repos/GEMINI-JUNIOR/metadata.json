@@ -1,0 +1,10 @@
+{
+  "name": "MATI AI - National AI Education Platform",
+  "description": "Comprehensive bilingual AI education platform for NCTB, BCS, skill development, offline learning, and local fee payments in Bangladesh.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

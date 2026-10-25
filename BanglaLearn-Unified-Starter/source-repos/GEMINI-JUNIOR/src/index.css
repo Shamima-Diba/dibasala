@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Hind Siliguri', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    word-break: break-word;
+    overflow-x: hidden;
+  }
+}
+
+/* 3D Depth & Tactile Premium UI Classes */
+.card-3d {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%), #121620;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(0, 0, 0, 0.4);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-3d:hover {
+  transform: translateY(-3px) scale(1.005);
+  box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.8), 0 0 20px rgba(59, 130, 246, 0.25);
+}
+
+.btn-3d-emerald {
+  background: linear-gradient(180deg, #10B981 0%, #059669 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 3px solid #047857;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+  transition: all 0.15s ease;
+}
+
+.btn-3d-emerald:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.btn-3d-blue {
+  background: linear-gradient(180deg, #3B82F6 0%, #2563EB 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 3px solid #1D4ED8;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+  transition: all 0.15s ease;
+}
+
+.btn-3d-blue:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.btn-3d-purple {
+  background: linear-gradient(180deg, #8B5CF6 0%, #7C3AED 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 3px solid #6D28D9;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+  transition: all 0.15s ease;
+}
+
+.btn-3d-purple:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.btn-3d-amber {
+  background: linear-gradient(180deg, #F59E0B 0%, #D97706 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 3px solid #B45309;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+  transition: all 0.15s ease;
+}
+
+.btn-3d-amber:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+
+.animate-float-slow {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+/* Custom scrollbar for dark modern aesthetics */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0D12;
+}
+::-webkit-scrollbar-thumb {
+  background: #252A36;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #10B981;
+}

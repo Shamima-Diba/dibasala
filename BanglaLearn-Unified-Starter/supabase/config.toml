@@ -1,0 +1,5 @@
+project_id = "banglalearn-local"
+
+[functions.ai-tutor]
+# Require a valid Supabase user JWT at the gateway. The function also calls auth.getUser().
+verify_jwt = true

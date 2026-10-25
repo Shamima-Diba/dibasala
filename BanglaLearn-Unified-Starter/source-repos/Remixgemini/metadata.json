@@ -1,0 +1,10 @@
+{
+  "name": "Remix JUNIOR GEMINI",
+  "description": "An interactive, accessible Gemini AI learning platform designed for students, learners, and educators in rural Bangladesh and worldwide.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

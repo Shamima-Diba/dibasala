@@ -1,0 +1,10 @@
+{
+  "name": "Mati AI (মাটি এআই)",
+  "description": "An interactive, accessible AI learning and intellectual property platform designed for students, learners, developers, and educators in Bangladesh and worldwide.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
