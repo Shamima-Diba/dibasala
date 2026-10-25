@@ -37,7 +37,22 @@ begin
 end;
 $$;
 
+-- 2b. Default privileges only affect objects created later, so existing grants are
+-- reset above. Stop future tables/functions created by postgres from auto-granting.
+alter default privileges for role postgres in schema public
+  revoke all on tables from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke execute on functions from public, anon;
+
 -- 3. Split policies per role so anon never evaluates has_role() --------------------
+-- Drops make this file safe to re-run (e.g. pasted into the SQL editor, then db push).
+drop policy if exists "anon reads published courses" on public.courses;
+drop policy if exists "authenticated reads visible courses" on public.courses;
+drop policy if exists "anon reads published lessons" on public.lessons;
+drop policy if exists "authenticated reads visible lessons" on public.lessons;
+drop policy if exists "course owners insert lessons" on public.lessons;
+drop policy if exists "course owners update lessons" on public.lessons;
+drop policy if exists "course owners delete lessons" on public.lessons;
 drop policy if exists "published courses readable" on public.courses;
 create policy "anon reads published courses" on public.courses
 for select to anon
