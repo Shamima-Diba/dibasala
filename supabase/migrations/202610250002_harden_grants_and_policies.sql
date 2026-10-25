@@ -42,7 +42,7 @@ $$;
 alter default privileges for role postgres in schema public
   revoke all on tables from anon, authenticated;
 alter default privileges for role postgres in schema public
-  revoke execute on functions from public, anon;
+  revoke execute on functions from public, anon, authenticated;
 
 -- 3. Split policies per role so anon never evaluates has_role() --------------------
 -- Drops make this file safe to re-run (e.g. pasted into the SQL editor, then db push).
@@ -85,7 +85,9 @@ using (
   ))
   or exists (
     select 1 from public.courses c
-    where c.id = lessons.course_id and c.created_by = (select auth.uid())
+    where c.id = lessons.course_id
+      and c.created_by = (select auth.uid())
+      and ((select public.has_role('teacher')) or (select public.has_role('admin')))
   )
   or (select public.has_role('admin'))
 );
