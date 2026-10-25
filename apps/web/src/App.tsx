@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, Bookmark, CheckCircle2,
   ChevronDown, CircleHelp, Clock3, Compass, GraduationCap, Home, Languages,
@@ -43,9 +43,13 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [mobileMenu, setMobileMenu] = useState(false);
-  const [saved, setSaved] = useState<number[]>([2]);
-  const [done, setDone] = useState<string[]>([]);
+  const [saved, setSaved] = useState<number[]>(() => readDemoState<number[]>('dibasala-demo-saved', [2]));
+  const [done, setDone] = useState<string[]>(() => readDemoState<string[]>('dibasala-demo-tasks', []));
+  const [completedLessons, setCompletedLessons] = useState<number[]>(() => readDemoState<number[]>('dibasala-demo-completed-lessons', []));
   const [notice, setNotice] = useState('');
+  useEffect(() => { writeDemoState('dibasala-demo-saved', saved); }, [saved]);
+  useEffect(() => { writeDemoState('dibasala-demo-tasks', done); }, [done]);
+  useEffect(() => { writeDemoState('dibasala-demo-completed-lessons', completedLessons); }, [completedLessons]);
   const t = language === 'bn' ? bn : en;
 
   const filteredCourses = useMemo(() => courses.filter((course) => {
@@ -113,6 +117,13 @@ export default function App() {
     </main>
     {notice && <div className="toast" role="status"><CheckCircle2 size={18}/>{notice}<button aria-label="Dismiss" onClick={()=>setNotice('')}><X size={15}/></button></div>}
   </div>;
+}
+function readDemoState<T>(key: string, fallback: T): T {
+  try { const raw = window.localStorage.getItem(key); return raw ? JSON.parse(raw) as T : fallback; }
+  catch { return fallback; }
+}
+function writeDemoState(key: string, value: unknown) {
+  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* Storage can be disabled by the browser. */ }
 }
 function ShieldMini(){return <span className="shield-mini">✓</span>}
 function CourseCard({course,language,saved,onSave,onStart,t}:{course:Course;language:'bn'|'en';saved:boolean;onSave:()=>void;onStart:()=>void;t:typeof bn}) {
