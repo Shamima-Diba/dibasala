@@ -52,12 +52,12 @@ export default function App() {
   useEffect(() => { writeDemoState('dibasala-demo-completed-lessons', completedLessons); }, [completedLessons]);
   const t = language === 'bn' ? bn : en;
 
-  const filteredCourses = useMemo(() => courses.filter((course) => {
+  const filteredCourses = useMemo(() => courses.map(course => completedLessons.includes(course.id) ? { ...course, progress: 100, label: language === 'bn' ? 'সম্পন্ন' : 'Completed' } : course).filter((course) => {
     const search = query.trim().toLocaleLowerCase();
     const matchesQuery = !search || `${course.title} ${course.subject} ${course.grade}`.toLocaleLowerCase().includes(search);
     const matchesFilter = filter === 'all' || course.subject === filter;
     return matchesQuery && matchesFilter;
-  }), [query, filter]);
+  }), [query, filter, completedLessons, language]);
 
   const navItems = [
     { id: 'home', label: t.home, icon: Home }, { id: 'learn', label: t.learn, icon: Compass },
