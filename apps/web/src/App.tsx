@@ -65,7 +65,8 @@ export default function App() {
     { id: 'offline', label: t.offline, icon: ArrowDownToLine },
   ];
   const startCourse = (course: Course) => {
-    setNotice(language === 'bn' ? `“${course.title}” পাঠটি ডেমো হিসেবে খোলা হয়েছে।` : `"${course.title}" opened in demo mode.`);
+    setCompletedLessons(old => old.includes(course.id) ? old : [...old, course.id]);
+    setNotice((language === 'bn' ? 'ডেমো পাঠ শুরু হয়েছে: ' : 'Demo lesson started: ') + course.title + (language === 'bn' ? ' — অগ্রগতি এই ব্রাউজারে সংরক্ষিত।' : ' — progress saved in this browser.'));
     window.setTimeout(() => setNotice(''), 3500);
   };
 
