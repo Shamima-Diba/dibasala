@@ -107,3 +107,20 @@ Evidence:
 - [AI tutor Edge Function](../supabase/functions/ai-tutor/index.ts)
 - [Architecture and secret policy](./ARCHITECTURE_AND_SECRET_POLICY_BN.md)
 - [Final source audit](./FINAL_AUDIT_BN.md)
+
+
+## Additional release blocker discovered during implementation (2026-10-27)
+
+### P0 — Migration chain appears internally inconsistent; database reset is not verified
+
+The `supabase/migrations/20261026204153_baseline_schema.sql` file begins as a PostgreSQL dump (including psql-specific `\\restrict` syntax and explicit `CREATE SCHEMA public` / `CREATE SCHEMA private` statements) while an earlier timestamped migration already creates core tables, policies and functions. The baseline dump also declares overlapping objects such as `profiles`, `courses`, `lessons`, `bookmarks`, `ai_usage_daily` and `consume_ai_quota` with different definitions/signatures. This is strong static evidence that a clean sequential `supabase db reset` may fail or produce a schema different from the one the Edge Function expects.
+
+**Do not apply either migration to production until this is resolved and tested on a disposable local database.** Choose one canonical schema history, convert any required baseline-only objects into valid ordered migrations, remove dump-only directives, reconcile duplicate definitions, and run `supabase db reset` from an empty database. Then test the exact `consume_ai_quota()` signature used by `ai-tutor/index.ts`, RLS isolation for two different learner accounts, and the grants on every exposed table. The repo documentation's suggested local reset is a test instruction, not evidence that it currently succeeds.
+
+### Revised release gates
+
+- [ ] Resolve the migration chain and prove clean database bootstrap succeeds from zero state.
+- [ ] Verify the function signature and quota semantics used by the deployed Edge Function match the applied schema.
+- [ ] Add automated tests for sign-up/sign-in/session restore/sign-out and AI Tutor 401/413/429/error cases.
+- [ ] Pass frontend CI and inspect preview-deployment logs; a failed/pending Vercel status is not a successful deployment.
+- [ ] Perform staging-only E2E and two-user RLS adversarial tests before release.
