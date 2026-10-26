@@ -6,3 +6,22 @@
 @media(max-width:760px){.sidebar{transform:translateX(-105%);transition:transform .22s ease;width:270px;box-shadow:none}.sidebar.sidebar-open{transform:translateX(0);box-shadow:15px 0 40px #20243b20}.scrim{display:block;position:fixed;inset:0;background:#171b2d70;border:0;z-index:25}.mobile-close{display:grid!important;margin-left:auto}.main-area{margin-left:0}.topbar{height:64px;padding:0 17px}.menu-btn{display:grid}.breadcrumb{margin-right:auto;margin-left:8px}.top-actions{gap:8px}.free-pill{display:none}.language-btn{padding:7px 8px}.top-avatar{display:none}.page-content{padding:22px 17px 17px}.welcome-row{min-height:105px}.welcome-row h1{font-size:25px}.welcome-row p{font-size:11px;max-width:330px}.welcome-illustration{width:110px;transform:scale(.72);transform-origin:right center;margin-left:-20px}.stats-grid{gap:10px;margin-bottom:25px}.stat-card{padding:13px 12px}.stat-card>strong{font-size:22px}.stat-card em{font-size:9px;white-space:normal}.course-grid{gap:11px}.course-art{height:100px;padding:11px}.course-symbol{font-size:43px;right:20px}.course-body{padding:12px}.course-body h3{font-size:12px;min-height:48px;margin:9px 0 13px}.course-meta{font-size:9px;flex-wrap:wrap}.meta-duration{display:none}.course-cta{font-size:10px;padding:9px}.section-heading h2{font-size:15px}.section-heading p{font-size:10px}.recommend-panel,.plan-panel{padding:14px}.quick-actions{gap:8px}.quick-actions>button{padding:10px 8px;gap:7px}.quick-actions>button b{font-size:10px}.quick-icon{width:29px;height:29px}.quick-actions>button>svg{display:none}.page-footer{font-size:8px}}
 @media(max-width:430px){.welcome-illustration{display:none}.welcome-row{min-height:auto;margin-bottom:19px}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.course-grid{grid-template-columns:1fr}.course-art{height:116px}.course-body h3{min-height:auto}.quick-actions{grid-template-columns:1fr}.quick-actions>div{grid-column:auto}.quick-actions>button{padding:11px}.quick-actions>button>svg{display:block}.search-panel{padding:0 12px;gap:8px}.search-panel kbd{display:none}.page-footer{align-items:flex-start;flex-direction:column}.top-actions{gap:5px}.language-btn{font-size:10px}.breadcrumb{font-size:11px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+/* ===== PREMIUM UPGRADES ===== */
+.app-shell.is-dark{--ink:#e8eaf2;--muted:#9aa3b5;--line:#2a2f3d;--surface:#151922;background:#0f1218;color:#e8eaf2}
+.app-shell.is-dark .sidebar,.app-shell.is-dark .topbar,.app-shell.is-dark .glass{background:rgba(24,28,40,.85);backdrop-filter:blur(16px);border-color:#2a2f3d}
+.glass{background:rgba(255,255,255,.72);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.35);box-shadow:0 8px 32px rgba(31,38,135,.08)}
+.ai-launch{display:flex;align-items:center;gap:10px;margin:12px 14px;padding:12px 14px;border-radius:14px;border:none;background:linear-gradient(135deg,#7158e8,#9b6dff);color:#fff;font-weight:600;cursor:pointer;box-shadow:0 8px 24px rgba(113,88,232,.35)}
+.ai-fab{display:flex;align-items:center;gap:8px;padding:12px 18px;border-radius:999px;border:none;background:linear-gradient(135deg,#7158e8,#9b6dff);color:#fff;font-weight:600;cursor:pointer;box-shadow:0 10px 28px rgba(113,88,232,.4)}
+.ai-overlay{position:fixed;inset:0;background:rgba(10,12,20,.55);backdrop-filter:blur(6px);z-index:80;display:flex;align-items:flex-end;justify-content:center}
+.ai-sheet{width:min(480px,100%);background:var(--surface,#fff);border-radius:24px 24px 0 0;padding:20px;box-shadow:0 -12px 40px rgba(0,0,0,.18)}
+.ai-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.ai-head button{margin-left:auto;border:none;background:transparent;cursor:pointer}
+.ai-hint{color:var(--muted);font-size:13px;margin-bottom:14px}
+.ai-input-row{display:flex;gap:8px}
+.ai-input-row input{flex:1;padding:12px 14px;border-radius:12px;border:1px solid var(--line);font:inherit}
+.ai-input-row button{width:48px;border:none;border-radius:12px;background:#7158e8;color:#fff;cursor:pointer}
+.course-card{transition:transform .2s ease,box-shadow .2s ease}
+.course-card:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(31,38,135,.12)}
+.stat-card.glass{border-radius:18px}
+.is-dark .course-cta,.is-dark .ai-launch,.is-dark .ai-fab{box-shadow:0 8px 28px rgba(113,88,232,.45)}
