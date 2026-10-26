@@ -36,9 +36,39 @@ Deno.serve(async (request: Request) => {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) return jsonResponse({ error: 'Sign in required' }, 401, cors);
 
+  // Bound the body before parsing it. Content-Length is only an early hint;
+  // the streamed byte count below is the enforcement point.
+  const maxRequestBytes = 16 * 1024;
+  const contentLength = request.headers.get('content-length');
+  if (contentLength !== null && Number(contentLength) > maxRequestBytes) {
+    return jsonResponse({ error: 'Request body is too large' }, 413, cors);
+  }
+
   let payload: unknown;
   try {
-    payload = await request.json();
+    const reader = request.body?.getReader();
+    if (!reader) return jsonResponse({ error: 'Invalid JSON body' }, 400, cors);
+
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxRequestBytes) {
+        await reader.cancel();
+        return jsonResponse({ error: 'Request body is too large' }, 413, cors);
+      }
+      chunks.push(value);
+    }
+
+    const bodyBytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bodyBytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    payload = JSON.parse(new TextDecoder().decode(bodyBytes));
   } catch {
     return jsonResponse({ error: 'Invalid JSON body' }, 400, cors);
   }
