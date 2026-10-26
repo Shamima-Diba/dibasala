@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import { supabase } from './lib/supabase'
 import {
   Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, Bookmark,
@@ -144,7 +145,7 @@ export default function App() {
     toast((lang === 'bn' ? 'পাঠ শুরু: ' : 'Started: ') + c.title)
   }
 
-  const submitAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setAuthError('')
     if (!supabase) {
@@ -206,6 +207,7 @@ export default function App() {
       }
       const url = import.meta.env.VITE_SUPABASE_URL
       const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+      if (!url || !key) throw new Error(lang === 'bn' ? 'Supabase কনফিগারেশন অসম্পূর্ণ।' : 'Supabase configuration is incomplete.')
       const res = await fetch(`${url}/functions/v1/ai-tutor`, {
         method: 'POST',
         headers: {
