@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { supabase } from './lib/supabase'
 import {
   Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, Bookmark,
   Bot, CheckCircle2, Clock3, Compass, GraduationCap, Home, Languages,
@@ -84,8 +85,28 @@ export default function App() {
   const [aiQ, setAiQ] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiAnswer, setAiAnswer] = useState('')
+  const [authOpen, setAuthOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   const t = lang === 'bn' ? bn : en
+
+  useEffect(() => {
+    if (!supabase) return
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) setAuthError(error.message)
+      setUserEmail(data.session?.user.email ?? null)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user.email ?? null)
+      setAuthError('')
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => { writeState('dibasala-saved', saved) }, [saved])
   useEffect(() => { writeState('dibasala-tasks', done) }, [done])
@@ -123,36 +144,89 @@ export default function App() {
     toast((lang === 'bn' ? 'পাঠ শুরু: ' : 'Started: ') + c.title)
   }
 
+  const submitAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setAuthError('')
+    if (!supabase) {
+      setAuthError(lang === 'bn' ? 'লাইভ Supabase কনফিগারেশন পাওয়া যায়নি।' : 'Supabase is not configured for this deployment.')
+      return
+    }
+    setAuthBusy(true)
+    try {
+      if (authMode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          email: authEmail.trim(),
+          password: authPassword,
+          options: { emailRedirectTo: window.location.origin },
+        })
+        if (error) throw error
+        if (!data.session) {
+          setAuthError(lang === 'bn' ? 'অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করে সাইন ইন করুন।' : 'Account created. Verify your email, then sign in.')
+          setAuthMode('signin')
+        } else {
+          setAuthOpen(false)
+          toast(lang === 'bn' ? 'সফলভাবে অ্যাকাউন্ট তৈরি হয়েছে' : 'Account created successfully')
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword })
+        if (error) throw error
+        setAuthOpen(false)
+        setAuthPassword('')
+        toast(lang === 'bn' ? 'সাইন ইন সফল হয়েছে' : 'Signed in successfully')
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : (lang === 'bn' ? 'সাইন ইন ব্যর্থ হয়েছে' : 'Authentication failed'))
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  const signOut = async () => {
+    if (!supabase) return
+    const { error } = await supabase.auth.signOut()
+    if (error) toast(error.message)
+    else toast(lang === 'bn' ? 'সাইন আউট হয়েছে' : 'Signed out')
+  }
+
   const askAI = async () => {
     if (!aiQ.trim()) return
+    if (!supabase) {
+      setAiAnswer(lang === 'bn' ? 'AI টিউটর চালু করতে Supabase environment সেট করুন।' : 'Configure Supabase environment to enable AI Tutor.')
+      return
+    }
     setAiLoading(true)
     setAiAnswer('')
     try {
-      const url = import.meta.env.VITE_SUPABASE_URL
-      const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-      if (!url || !key) {
-        setAiAnswer(lang === 'bn'
-          ? 'ডেমো মোড: VITE_SUPABASE_URL ও PUBLISHABLE_KEY সেট করুন।'
-          : 'Demo mode: set VITE_SUPABASE_URL and PUBLISHABLE_KEY.')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session?.access_token) {
+        setAiAnswer(lang === 'bn' ? 'AI টিউটর ব্যবহারের আগে সাইন ইন করুন।' : 'Please sign in before using AI Tutor.')
+        setAuthOpen(true)
         return
       }
+      const url = import.meta.env.VITE_SUPABASE_URL
+      const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
       const res = await fetch(`${url}/functions/v1/ai-tutor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           apikey: key,
-          Authorization: `Bearer ${key}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ question: aiQ.trim() }),
       })
       if (!res.ok) {
-        const err = await res.text()
-        throw new Error(err || 'Request failed')
+        let message = `Request failed (${res.status})`
+        try {
+          const payload = await res.json()
+          if (typeof payload.error === 'string') message = payload.error
+        } catch { /* keep generic status */ }
+        throw new Error(message)
       }
       const data = await res.json()
-      setAiAnswer(data.answer || data.message || JSON.stringify(data))
-    } catch (e: any) {
-      setAiAnswer((lang === 'bn' ? 'সমস্যা: ' : 'Error: ') + (e.message || 'Unknown'))
+      setAiAnswer(data.answer || (lang === 'bn' ? 'কোনো উত্তর পাওয়া যায়নি।' : 'No answer returned.'))
+    } catch (error) {
+      setAiAnswer((lang === 'bn' ? 'সমস্যা: ' : 'Error: ') + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setAiLoading(false)
     }
@@ -226,7 +300,16 @@ export default function App() {
             <button className="icon-btn" onClick={() => toast(lang === 'bn' ? 'নতুন নোটিফিকেশন নেই' : 'No new notifications')} aria-label="Bell">
               <Bell size={18} />
             </button>
-            <div className="top-avatar">আ</div>
+            {userEmail ? (
+              <div className="account-actions" title={userEmail}>
+                <span className="account-email">{userEmail}</span>
+                <button className="auth-trigger" onClick={signOut}>{lang === 'bn' ? 'সাইন আউট' : 'Sign out'}</button>
+              </div>
+            ) : (
+              <button className="auth-trigger" onClick={() => { setAuthError(''); setAuthOpen(true) }}>
+                {lang === 'bn' ? 'সাইন ইন' : 'Sign in'}
+              </button>
+            )}
           </div>
         </header>
 
@@ -406,6 +489,33 @@ export default function App() {
           </footer>
         </div>
       </main>
+
+      {authOpen && (
+        <div className="ai-overlay" onClick={() => setAuthOpen(false)}>
+          <section className="auth-sheet" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={event => event.stopPropagation()}>
+            <div className="ai-head">
+              <GraduationCap size={22} />
+              <b id="auth-title">{authMode === 'signin' ? (lang === 'bn' ? 'শিক্ষার্থী সাইন ইন' : 'Learner sign in') : (lang === 'bn' ? 'নতুন অ্যাকাউন্ট' : 'Create account')}</b>
+              <button type="button" onClick={() => setAuthOpen(false)} aria-label="Close"><X size={18} /></button>
+            </div>
+            <p className="ai-hint">{lang === 'bn' ? 'আপনার অ্যাকাউন্ট দিয়ে ব্যক্তিগত সেশন শুরু করুন।' : 'Use your account to start a personal session.'}</p>
+            <form className="auth-form" onSubmit={submitAuth}>
+              <label>{lang === 'bn' ? 'ইমেইল' : 'Email'}
+                <input type="email" autoComplete="email" required value={authEmail} onChange={event => setAuthEmail(event.target.value)} />
+              </label>
+              <label>{lang === 'bn' ? 'পাসওয়ার্ড' : 'Password'}
+                <input type="password" autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'} minLength={8} required value={authPassword} onChange={event => setAuthPassword(event.target.value)} />
+              </label>
+              {authError && <p className="auth-error" role="alert">{authError}</p>}
+              <button className="auth-submit" type="submit" disabled={authBusy}>{authBusy ? (lang === 'bn' ? 'অপেক্ষা করুন…' : 'Please wait…') : authMode === 'signin' ? (lang === 'bn' ? 'সাইন ইন' : 'Sign in') : (lang === 'bn' ? 'অ্যাকাউন্ট তৈরি করুন' : 'Create account')}</button>
+            </form>
+            <button className="auth-switch" type="button" onClick={() => { setAuthMode(mode => mode === 'signin' ? 'signup' : 'signin'); setAuthError('') }}>
+              {authMode === 'signin' ? (lang === 'bn' ? 'নতুন অ্যাকাউন্ট তৈরি করুন' : 'Create a new account') : (lang === 'bn' ? 'আগে থেকেই অ্যাকাউন্ট আছে? সাইন ইন' : 'Already have an account? Sign in')}
+            </button>
+            {!supabase && <p className="auth-error">{lang === 'bn' ? 'ডেমো মোড: deployment-এ Supabase URL ও publishable key সেট করা নেই।' : 'Demo mode: Supabase URL and publishable key are not configured.'}</p>}
+          </section>
+        </div>
+      )}
 
       {aiOpen && (
         <div className="ai-overlay" onClick={() => setAiOpen(false)}>
