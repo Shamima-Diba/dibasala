@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { supabase } from './lib/supabase'
+import { supabase, supabaseUrl, supabasePublishableKey } from './lib/supabase'
 import {
   Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, Bookmark,
   Bot, CheckCircle2, Clock3, Compass, GraduationCap, Home, Languages,
@@ -425,11 +425,11 @@ export default function App() {
     }
     setBillingBusy(true)
     try {
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/billing`, {
+      const response = await fetch(`${supabaseUrl}/functions/v1/billing`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          apikey: supabase.supabaseKey,
+          apikey: supabasePublishableKey,
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ planSlug }),
@@ -467,13 +467,11 @@ export default function App() {
         setAuthOpen(true)
         return
       }
-      const url = supabase.supabaseUrl
-      const key = supabase.supabaseKey
-      const res = await fetch(`${url}/functions/v1/ai-tutor`, {
+      const res = await fetch(`${supabaseUrl}/functions/v1/ai-tutor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          apikey: key,
+          apikey: supabasePublishableKey,
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ question: aiQ.trim() }),
