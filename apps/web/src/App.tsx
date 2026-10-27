@@ -542,6 +542,7 @@ export default function App() {
             )}
           </section>
 
+          <div style={{ display: active === 'home' ? 'contents' : 'none' }}>
           <section className="stats-grid">
             <div className="stat-card glass">
               <div className="stat-icon purple"><Target size={18} /></div>
@@ -690,6 +691,47 @@ export default function App() {
             <span>© 2026 DIBASALA</span>
             <span>✓ Privacy first</span>
           </footer>
+          </div>
+          {active === 'learn' && (
+            <section className="section-block">
+              <div className="section-heading">
+                <div><h2>{lang === 'bn' ? 'সব কোর্স' : 'All courses'}</h2><p>{lang === 'bn' ? 'ব্যাকএন্ড থেকে প্রকাশিত কোর্স' : 'Published courses from the backend'}</p></div>
+              </div>
+              <div className="course-grid">
+                {courses.map(c => <CourseCard key={c.id} course={c} lang={lang} saved={saved.includes(c.id)} onSave={() => { void toggleBookmark(c) }} onStart={() => startCourse(c)} t={t} />)}
+                {courses.length === 0 && <div className="empty-state"><BookOpen size={26} /><strong>{t.noResults}</strong></div>}
+              </div>
+            </section>
+          )}
+          {active === 'library' && (
+            <section className="section-block">
+              <div className="section-heading"><div><h2>{lang === 'bn' ? 'আমার লাইব্রেরি' : 'My library'}</h2><p>{lang === 'bn' ? 'আপনার সংরক্ষিত কোর্স' : 'Your bookmarked courses'}</p></div></div>
+              <div className="course-grid">
+                {catalog.filter(c => saved.includes(c.id)).map(c => <CourseCard key={c.id} course={c} lang={lang} saved={true} onSave={() => { void toggleBookmark(c) }} onStart={() => startCourse(c)} t={t} />)}
+                {!catalog.some(c => saved.includes(c.id)) && <div className="empty-state"><Bookmark size={26} /><strong>{lang === 'bn' ? 'এখনও কোনো কোর্স সংরক্ষণ করা হয়নি' : 'No bookmarked courses yet'}</strong><button className="text-link" onClick={() => setActive('learn')}>{lang === 'bn' ? 'কোর্স দেখুন' : 'Browse courses'} <ArrowRight size={15} /></button></div>}
+              </div>
+            </section>
+          )}
+          {active === 'progress' && (
+            <section className="section-block">
+              <div className="section-heading"><div><h2>{lang === 'bn' ? 'আমার অগ্রগতি' : 'My progress'}</h2><p>{lang === 'bn' ? 'সাইন ইন করলে অগ্রগতি অ্যাকাউন্টে সংরক্ষিত থাকবে' : 'Sign in to keep progress saved to your account'}</p></div></div>
+              <div className="mini-course-list">
+                {catalog.map(c => <div key={c.id} className="mini-course"><div className={`mini-icon ${c.color}`}>{c.progress >= 100 ? '✓' : c.progress + '%'}</div><div className="mini-info"><b>{c.title}</b><span>{lang === 'bn' ? `অগ্রগতি: ${c.progress}%` : `Progress: ${c.progress}%`}</span></div><button className="text-link" onClick={() => startCourse(c)}>{lang === 'bn' ? 'চালিয়ে যান' : 'Continue'} <ArrowRight size={15} /></button></div>)}
+              </div>
+              {!userId && <p className="ai-hint">{lang === 'bn' ? 'এই ডিভাইসের বাইরে অগ্রগতি সিঙ্ক করতে সাইন ইন করুন।' : 'Sign in to sync progress across devices.'}</p>}
+            </section>
+          )}
+          {active === 'offline' && (
+            <section className="section-block">
+              <div className="section-heading"><div><h2>{lang === 'bn' ? 'অফলাইন শেখা' : 'Offline learning'}</h2><p>{lang === 'bn' ? 'অফলাইনে পড়ার জন্য পাঠ ডিভাইসে সংরক্ষণ করার সুবিধা এখনও প্রস্তুত নয়।' : 'Saving lessons for offline reading is not enabled yet.'}</p></div></div>
+              <div className="recommend-panel glass" style={{ padding: 24 }}>
+                <WifiOff size={28} />
+                <h3>{lang === 'bn' ? 'ইন্টারনেট সংযোগ প্রয়োজন' : 'Internet connection required'}</h3>
+                <p>{lang === 'bn' ? 'বর্তমানে কোর্স ও পাঠ সরাসরি DIBASALA ব্যাকএন্ড থেকে লোড হয়। অফলাইন ক্যাশিং পরবর্তী কাজের অংশ।' : 'Courses and lessons currently load from the DIBASALA backend. Offline caching remains a follow-up feature.'}</p>
+                <button className="auth-submit" onClick={() => setActive('learn')}>{lang === 'bn' ? 'অনলাইন কোর্স দেখুন' : 'Browse online courses'}</button>
+              </div>
+            </section>
+          )}
         </div>
       </main>
 
