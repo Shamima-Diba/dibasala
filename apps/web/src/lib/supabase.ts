@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+const url = import.meta.env.VITE_SUPABASE_URL || 'https://ruamhcchaeogodsltskw.supabase.co'
+// Publishable/anon keys are intended for browser use; row-level security remains the security boundary.
+const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_zQpK1tTzUXCYe17R6e6j9g_Bc4IqZCG'
 
 if (!url || !key) {
-  console.warn('Supabase env missing. Authentication and AI Tutor are disabled; demo UI remains available.')
+  console.warn('Supabase environment variables are absent; using the configured public DIBASALA Supabase project.')
 }
 
 // Do not create a fake client with placeholder credentials. A null client makes
