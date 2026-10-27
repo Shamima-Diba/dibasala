@@ -4,11 +4,17 @@ const configuredOrigins = (Deno.env.get('ALLOWED_ORIGINS') ?? '')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
-// Exact deployed origin allowlist; keep origins explicit (never use '*').
 const allowedOrigins = [...new Set([
   'https://dibasala-pw1vnac27-shamima-diba.vercel.app',
   ...configuredOrigins,
 ])];
+
+// Vercel creates a unique hostname for each deployment. Restrict previews to
+// this project's deployment naming pattern, while keeping custom origins exact.
+function isAllowedOrigin(origin: string): boolean {
+  return allowedOrigins.includes(origin)
+    || /^https:\/\/dibasala-[a-z0-9-]+-shamima-diba\.vercel\.app$/.test(origin);
+}
 
 function corsHeaders(origin: string | null): Record<string, string> {
   const headers: Record<string, string> = {
@@ -16,7 +22,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   };
-  if (origin && allowedOrigins.includes(origin)) headers['Access-Control-Allow-Origin'] = origin;
+  if (origin && isAllowedOrigin(origin)) headers['Access-Control-Allow-Origin'] = origin;
   return headers;
 }
 
@@ -32,17 +38,15 @@ Deno.serve(async (request: Request) => {
   const cors = corsHeaders(origin);
 
   if (request.method === 'OPTIONS') {
-    if (origin && !allowedOrigins.includes(origin)) return new Response(null, { status: 403 });
+    if (origin && !isAllowedOrigin(origin)) return new Response(null, { status: 403 });
     return new Response(null, { status: 204, headers: cors });
   }
   if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405, cors);
-  if (origin && !allowedOrigins.includes(origin)) return jsonResponse({ error: 'Origin not allowed' }, 403, cors);
+  if (origin && !isAllowedOrigin(origin)) return jsonResponse({ error: 'Origin not allowed' }, 403, cors);
 
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) return jsonResponse({ error: 'Sign in required' }, 401, cors);
 
-  // Bound the body before parsing it. Content-Length is only an early hint;
-  // the streamed byte count below is the enforcement point.
   const maxRequestBytes = 16 * 1024;
   const contentLength = request.headers.get('content-length');
   if (contentLength !== null && Number(contentLength) > maxRequestBytes) {
@@ -53,7 +57,6 @@ Deno.serve(async (request: Request) => {
   try {
     const reader = request.body?.getReader();
     if (!reader) return jsonResponse({ error: 'Invalid JSON body' }, 400, cors);
-
     const chunks: Uint8Array[] = [];
     let totalBytes = 0;
     while (true) {
@@ -66,7 +69,6 @@ Deno.serve(async (request: Request) => {
       }
       chunks.push(value);
     }
-
     const bodyBytes = new Uint8Array(totalBytes);
     let offset = 0;
     for (const chunk of chunks) {
@@ -118,7 +120,6 @@ Deno.serve(async (request: Request) => {
       signal: AbortSignal.timeout(20000),
     });
     if (!aiResponse.ok) {
-      // Never return upstream response bodies or keys to the browser.
       return jsonResponse({ error: aiResponse.status === 429 ? 'AI service is busy; try again later' : 'AI provider request failed' }, aiResponse.status === 429 ? 429 : 502, cors);
     }
     const result = await aiResponse.json();
