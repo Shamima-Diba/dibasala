@@ -83,7 +83,7 @@ export default function App() {
   const [menu, setMenu] = useState(false)
   const [dark, setDark] = useState(false)
   const [catalog, setCatalog] = useState<Course[]>(supabase ? [] : COURSES)
-  const [saved, setSaved] = useState<number[]>(() => readState('dibasala-saved', [2]))
+  const [saved, setSaved] = useState<number[]>(() => readState('dibasala-saved', []))
   const [done, setDone] = useState<string[]>(() => readState('dibasala-tasks', []))
   const [completed, setCompleted] = useState<number[]>(() => readState('dibasala-completed', []))
   const [userId, setUserId] = useState<string | null>(null)
@@ -170,7 +170,7 @@ export default function App() {
 
   useEffect(() => {
     if (!userId) {
-      setSaved(readState('dibasala-saved', [2]))
+      setSaved(readState('dibasala-saved', []))
       setDone(readState('dibasala-tasks', []))
       setCompleted(readState('dibasala-completed', []))
       return
@@ -445,8 +445,8 @@ export default function App() {
         <div className="brand-row">
           <div className="brand-mark"><GraduationCap size={22} /></div>
           <div>
-            <strong>পাঠশালা<span className="brand-dot">.</span></strong>
-            <small>PREMIUM LEARN</small>
+            <strong>DIBASALA<span className="brand-dot">.</span></strong>
+            <small>LEARNING PLATFORM</small>
           </div>
           <button className="icon-btn mobile-close" onClick={() => setMenu(false)} aria-label="Close">
             <X size={18} />
@@ -687,7 +687,7 @@ export default function App() {
           </section>
 
           <footer className="page-footer">
-            <span>© 2026 পাঠশালা</span>
+            <span>© 2026 DIBASALA</span>
             <span>✓ Privacy first</span>
           </footer>
         </div>
@@ -715,7 +715,7 @@ export default function App() {
             <button className="auth-switch" type="button" onClick={() => { setAuthMode(mode => mode === 'signin' ? 'signup' : 'signin'); setAuthError('') }}>
               {authMode === 'signin' ? (lang === 'bn' ? 'নতুন অ্যাকাউন্ট তৈরি করুন' : 'Create a new account') : (lang === 'bn' ? 'আগে থেকেই অ্যাকাউন্ট আছে? সাইন ইন' : 'Already have an account? Sign in')}
             </button>
-            {!supabase && <p className="auth-error">{lang === 'bn' ? 'ডেমো মোড: deployment-এ Supabase URL ও publishable key সেট করা নেই।' : 'Demo mode: Supabase URL and publishable key are not configured.'}</p>}
+            {!supabase && <p className="auth-error">{lang === 'bn' ? 'DIBASALA backend-এ সংযোগ স্থাপন করা যায়নি। Supabase configuration ও network status পরীক্ষা করুন।' : 'DIBASALA could not connect to its backend. Check Supabase configuration and network status.'}</p>}
           </section>
         </div>
       )}
