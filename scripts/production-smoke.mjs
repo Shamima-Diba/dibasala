@@ -18,7 +18,7 @@ async function check(name, fn) {
   }
 }
 
-for (const functionName of ['ai-tutor', 'billing']) {
+for (const functionName of ['ai-tutor', 'billing', 'premium-code']) {
   await check(`${functionName} CORS preflight`, async () => {
     const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
       method: 'OPTIONS',
@@ -41,6 +41,19 @@ await check('billing rejects unauthenticated checkout', async () => {
     method: 'POST',
     headers: { Origin: siteUrl, 'Content-Type': 'application/json' },
     body: JSON.stringify({ planSlug: 'premium_monthly' }),
+  });
+  const body = await response.json().catch(() => ({}));
+  return {
+    ok: response.status === 401,
+    detail: `HTTP ${response.status}; ${body.error || 'no error detail'}`,
+  };
+});
+
+await check('premium-code rejects unauthenticated redemption', async () => {
+  const response = await fetch(`${supabaseUrl}/functions/v1/premium-code`, {
+    method: 'POST',
+    headers: { Origin: siteUrl, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: 'DUMMY-QC-CODE' }),
   });
   const body = await response.json().catch(() => ({}));
   return {
