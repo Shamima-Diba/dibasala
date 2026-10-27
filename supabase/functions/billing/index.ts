@@ -119,6 +119,8 @@ Deno.serve(async (request) => {
   const db = admin();
   const { data: plan, error: planError } = await db.from('subscription_plans').select('id,slug,name,billing_interval,amount_bdt,currency').eq('slug', planSlug).eq('active', true).single();
   if (planError || !plan) return json({ error: 'Plan unavailable' }, 404, origin);
+  await db.from('subscriptions').update({ status: 'expired' }).eq('user_id', user.id).eq('status', 'active').lte('current_period_end', new Date().toISOString());
+  await db.from('subscriptions').update({ status: 'expired' }).eq('user_id', user.id).eq('status', 'pending').lt('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
   const { data: active } = await db.from('subscriptions').select('id,status').eq('user_id', user.id).in('status', ['active','past_due']).maybeSingle();
   if (active) return json({ error: 'An active subscription already exists. Renewal is not yet enabled; contact support before purchasing again.' }, 409, origin);
   await db.from('subscriptions').update({ status: 'expired' }).eq('user_id', user.id).eq('status', 'pending');
