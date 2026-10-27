@@ -256,9 +256,14 @@ export default function App() {
     setLessonDoneIds([])
     try {
       if (userId) {
-        const { error: enrollmentError } = await supabase.from('enrollments')
-          .upsert({ user_id: userId, course_id: c.dbId }, { onConflict: 'user_id,course_id' })
-        if (enrollmentError) throw enrollmentError
+        const { data: enrollment, error: enrollmentLookupError } = await supabase.from('enrollments')
+          .select('course_id').eq('user_id', userId).eq('course_id', c.dbId).maybeSingle()
+        if (enrollmentLookupError) throw enrollmentLookupError
+        if (!enrollment) {
+          const { error: enrollmentInsertError } = await supabase.from('enrollments')
+            .insert({ user_id: userId, course_id: c.dbId })
+          if (enrollmentInsertError) throw enrollmentInsertError
+        }
       }
       const { data: lessons, error: lessonsError } = await supabase.from('lessons')
         .select('id, course_id, title_bn, title_en, body_markdown')
@@ -322,7 +327,7 @@ export default function App() {
     const shouldSave = !saved.includes(c.id)
     if (userId && supabase && c.dbId) {
       const result = shouldSave
-        ? await supabase.from('bookmarks').upsert({ user_id: userId, course_id: c.dbId }, { onConflict: 'user_id,course_id' })
+        ? await supabase.from('bookmarks').insert({ user_id: userId, course_id: c.dbId })
         : await supabase.from('bookmarks').delete().eq('user_id', userId).eq('course_id', c.dbId)
       if (result.error) {
         toast(lang === 'bn' ? 'বুকমার্ক সংরক্ষণ হয়নি' : 'Bookmark could not be saved')
@@ -559,7 +564,7 @@ export default function App() {
             <div className="stat-card glass">
               <div className="stat-icon green"><Trophy size={18} /></div>
               <span>{t.completed}</span>
-              <strong>{completed.length} <small>/ ${catalog.length}</small></strong>
+              <strong>{completed.length} <small>/ {catalog.length}</small></strong>
             </div>
           </section>
 
