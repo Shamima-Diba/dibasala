@@ -124,10 +124,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!supabase) return
+    const client = supabase
+    if (!client) return
     let cancelled = false
     const loadCatalog = async () => {
-      const { data: courseRows, error: courseError } = await supabase
+      const { data: courseRows, error: courseError } = await client
         .from('courses')
         .select('id, slug, title_bn, subject, grade_level')
         .eq('status', 'published')
@@ -138,7 +139,7 @@ export default function App() {
         setNotice('কোর্স ডেটা লোড করা যায়নি। পরে আবার চেষ্টা করুন।')
         return
       }
-      const { data: lessonRows, error: lessonError } = await supabase
+      const { data: lessonRows, error: lessonError } = await client
         .from('lessons')
         .select('id, course_id')
         .eq('status', 'published')
@@ -174,13 +175,14 @@ export default function App() {
       setCompleted(readState('dibasala-completed', []))
       return
     }
-    if (!supabase || !catalog.length || !catalog.every(course => course.dbId)) return
+    const client = supabase
+    if (!client || !catalog.length || !catalog.every(course => course.dbId)) return
     let cancelled = false
     const loadLearnerState = async () => {
       const [{ data: bookmarks, error: bookmarkError }, { data: progress, error: progressError }, { data: checklist, error: checklistError }] = await Promise.all([
-        supabase.from('bookmarks').select('course_id').eq('user_id', userId),
-        supabase.from('course_progress').select('course_id, progress_percent').eq('user_id', userId),
-        supabase.from('learner_checklist').select('task_key, completed').eq('user_id', userId),
+        client.from('bookmarks').select('course_id').eq('user_id', userId),
+        client.from('course_progress').select('course_id, progress_percent').eq('user_id', userId),
+        client.from('learner_checklist').select('task_key, completed').eq('user_id', userId),
       ])
       if (cancelled) return
       const failed = bookmarkError || progressError || checklistError
