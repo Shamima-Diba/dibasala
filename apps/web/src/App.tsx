@@ -18,13 +18,15 @@ type Course = {
   color: string
   icon: string
   duration: string
+  slug: string
+  dbId?: string
 }
 
 const COURSES: Course[] = [
-  { id: 1, title: 'গণিত: বীজগণিতের ভিত্তি', subject: 'গণিত', grade: '৯ম শ্রেণি', lessons: 12, progress: 65, color: 'violet', icon: '∑', duration: '৪৫ মিনিট' },
-  { id: 2, title: 'পদার্থবিজ্ঞান: বল ও গতি', subject: 'বিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 8, progress: 30, color: 'blue', icon: '⚛', duration: '৩৫ মিনিট' },
-  { id: 3, title: 'ইংরেজি Grammar Essentials', subject: 'ইংরেজি', grade: '৯ম শ্রেণি', lessons: 10, progress: 0, color: 'orange', icon: 'Aa', duration: '২৫ মিনিট' },
-  { id: 4, title: 'বাংলাদেশ ও বিশ্বপরিচয়', subject: 'সমাজবিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 14, progress: 80, color: 'green', icon: '🌏', duration: '৩০ মিনিট' },
+  { id: 1, slug: 'algebra-foundations', title: 'গণিত: বীজগণিতের ভিত্তি', subject: 'গণিত', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'violet', icon: '∑', duration: '১০ মিনিট' },
+  { id: 2, slug: 'force-and-motion', title: 'পদার্থবিজ্ঞান: বল ও গতি', subject: 'বিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'blue', icon: '⚛', duration: '১০ মিনিট' },
+  { id: 3, slug: 'english-grammar-essentials', title: 'ইংরেজি Grammar Essentials', subject: 'ইংরেজি', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'orange', icon: 'Aa', duration: '১০ মিনিট' },
+  { id: 4, slug: 'bangladesh-world-identity', title: 'বাংলাদেশ ও বিশ্বপরিচয়', subject: 'সমাজবিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'green', icon: '🌏', duration: '১০ মিনিট' },
 ]
 
 const bn = {
@@ -41,6 +43,8 @@ const bn = {
   aiHint: 'Gemini Edge Function দিয়ে উত্তর আসবে। Secrets সেট করুন।', send: 'পাঠাও',
   dark: 'ডার্ক', light: 'লাইট', saved: 'সংরক্ষিত', done: 'সম্পন্ন'
 }
+
+type Lesson = { id: string; course_id: string; title_bn: string; title_en: string | null; body_markdown: string }
 
 const en = {
   home: 'Home', learn: 'Explore', library: 'Library', progress: 'Progress', offline: 'Offline',
@@ -78,9 +82,17 @@ export default function App() {
   const [filter, setFilter] = useState('all')
   const [menu, setMenu] = useState(false)
   const [dark, setDark] = useState(false)
+  const [catalog, setCatalog] = useState<Course[]>(supabase ? [] : COURSES)
   const [saved, setSaved] = useState<number[]>(() => readState('dibasala-saved', [2]))
   const [done, setDone] = useState<string[]>(() => readState('dibasala-tasks', []))
   const [completed, setCompleted] = useState<number[]>(() => readState('dibasala-completed', []))
+  const [userId, setUserId] = useState<string | null>(null)
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [courseLessons, setCourseLessons] = useState<Lesson[]>([])
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
+  const [lessonDoneIds, setLessonDoneIds] = useState<string[]>([])
+  const [courseLoading, setCourseLoading] = useState(false)
+  const [courseError, setCourseError] = useState('')
   const [notice, setNotice] = useState('')
   const [aiOpen, setAiOpen] = useState(false)
   const [aiQ, setAiQ] = useState('')
@@ -101,23 +113,115 @@ export default function App() {
     supabase.auth.getSession().then(({ data, error }) => {
       if (error) setAuthError(error.message)
       setUserEmail(data.session?.user.email ?? null)
+      setUserId(data.session?.user.id ?? null)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserEmail(session?.user.email ?? null)
+      setUserId(session?.user.id ?? null)
       setAuthError('')
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  useEffect(() => { writeState('dibasala-saved', saved) }, [saved])
-  useEffect(() => { writeState('dibasala-tasks', done) }, [done])
-  useEffect(() => { writeState('dibasala-completed', completed) }, [completed])
+  useEffect(() => {
+    const client = supabase
+    if (!client) return
+    let cancelled = false
+    const loadCatalog = async () => {
+      const { data: courseRows, error: courseError } = await client
+        .from('courses')
+        .select('id, slug, title_bn, subject, grade_level')
+        .eq('status', 'published')
+        .order('created_at', { ascending: true })
+      if (cancelled) return
+      if (courseError || !courseRows) {
+        setCatalog([])
+        setNotice('কোর্স ডেটা লোড করা যায়নি। পরে আবার চেষ্টা করুন।')
+        return
+      }
+      const { data: lessonRows, error: lessonError } = await client
+        .from('lessons')
+        .select('id, course_id')
+        .eq('status', 'published')
+      if (cancelled) return
+      if (lessonError || !lessonRows) {
+        setCatalog([])
+        setNotice('পাঠের ডেটা লোড করা যায়নি। পরে আবার চেষ্টা করুন।')
+        return
+      }
+      const mapped = courseRows.flatMap(row => {
+        const template = COURSES.find(course => course.slug === row.slug)
+        if (!template) return []
+        return [{
+          ...template,
+          dbId: row.id,
+          title: row.title_bn,
+          subject: row.subject,
+          grade: `${row.grade_level}ম শ্রেণি`,
+          lessons: lessonRows.filter(lesson => lesson.course_id === row.id).length,
+          progress: 0,
+        }]
+      })
+      setCatalog(mapped)
+    }
+    void loadCatalog()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!userId) {
+      setSaved(readState('dibasala-saved', [2]))
+      setDone(readState('dibasala-tasks', []))
+      setCompleted(readState('dibasala-completed', []))
+      return
+    }
+    const client = supabase
+    if (!client || !catalog.length || !catalog.every(course => course.dbId)) return
+    let cancelled = false
+    const loadLearnerState = async () => {
+      const [{ data: bookmarks, error: bookmarkError }, { data: progress, error: progressError }, { data: checklist, error: checklistError }] = await Promise.all([
+        client.from('bookmarks').select('course_id').eq('user_id', userId),
+        client.from('course_progress').select('course_id, progress_percent').eq('user_id', userId),
+        client.from('learner_checklist').select('task_key, completed').eq('user_id', userId),
+      ])
+      if (cancelled) return
+      const failed = bookmarkError || progressError || checklistError
+      if (failed) {
+        setNotice('আপনার শেখার অগ্রগতি লোড হয়নি। আবার সাইন ইন করে চেষ্টা করুন।')
+        return
+      }
+      const idsFor = (dbId: string) => catalog.find(course => course.dbId === dbId)?.id
+      setSaved((bookmarks ?? []).map(row => idsFor(row.course_id)).filter((id): id is number => id !== undefined))
+      const finished = (progress ?? []).filter(row => row.progress_percent >= 100).map(row => idsFor(row.course_id)).filter((id): id is number => id !== undefined)
+      setCompleted(finished)
+      setCatalog(old => old.map(course => {
+        const row = (progress ?? []).find(item => item.course_id === course.dbId)
+        return row ? { ...course, progress: row.progress_percent } : { ...course, progress: 0 }
+      }))
+      setDone((checklist ?? []).filter(row => row.completed).map(row => row.task_key))
+    }
+    void loadLearnerState()
+    return () => { cancelled = true }
+  }, [userId, catalog.length, catalog.map(course => course.dbId).join(',')])
+
+  useEffect(() => {
+    if (userId) return
+    writeState('dibasala-saved', saved)
+  }, [saved, userId])
+  useEffect(() => {
+    if (userId) return
+    writeState('dibasala-tasks', done)
+  }, [done, userId])
+  useEffect(() => {
+    if (userId) return
+    writeState('dibasala-completed', completed)
+  }, [completed, userId])
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
   }, [dark])
 
   const courses = useMemo(() => {
-    return COURSES.map(c =>
+    return catalog.map(c =>
       completed.includes(c.id) ? { ...c, progress: 100 } : c
     ).filter(c => {
       const s = query.trim().toLowerCase()
@@ -125,7 +229,7 @@ export default function App() {
       const matchF = filter === 'all' || c.subject === filter
       return matchQ && matchF
     })
-  }, [query, filter, completed])
+  }, [catalog, query, filter, completed])
 
   const nav = [
     { id: 'home', label: t.home, icon: Home },
@@ -140,9 +244,110 @@ export default function App() {
     setTimeout(() => setNotice(''), 3200)
   }
 
-  const startCourse = (c: Course) => {
-    setCompleted(old => (old.includes(c.id) ? old : [...old, c.id]))
-    toast((lang === 'bn' ? 'পাঠ শুরু: ' : 'Started: ') + c.title)
+  const startCourse = async (c: Course) => {
+    if (!supabase || !c.dbId) {
+      toast(lang === 'bn' ? 'লাইভ কোর্স ডেটা পাওয়া যায়নি।' : 'Live course data is unavailable.')
+      return
+    }
+    setCourseLoading(true)
+    setCourseError('')
+    setSelectedLesson(null)
+    setLessonDoneIds([])
+    try {
+      if (userId) {
+        const { data: enrollment, error: enrollmentLookupError } = await supabase.from('enrollments')
+          .select('course_id').eq('user_id', userId).eq('course_id', c.dbId).maybeSingle()
+        if (enrollmentLookupError) throw enrollmentLookupError
+        if (!enrollment) {
+          const { error: enrollmentInsertError } = await supabase.from('enrollments')
+            .insert({ user_id: userId, course_id: c.dbId })
+          if (enrollmentInsertError) throw enrollmentInsertError
+        }
+      }
+      const { data: lessons, error: lessonsError } = await supabase.from('lessons')
+        .select('id, course_id, title_bn, title_en, body_markdown')
+        .eq('course_id', c.dbId)
+        .eq('status', 'published')
+        .order('sort_order', { ascending: true })
+      if (lessonsError) throw lessonsError
+      setCourseLessons(lessons ?? [])
+      if (userId && lessons?.length) {
+        const { data: progressRows, error: progressError } = await supabase.from('lesson_progress')
+          .select('lesson_id')
+          .eq('user_id', userId)
+          .in('lesson_id', lessons.map(lesson => lesson.id))
+        if (progressError) throw progressError
+        setLessonDoneIds((progressRows ?? []).map(row => row.lesson_id))
+      }
+      setSelectedCourse(c)
+    } catch (error) {
+      setCourseError(error instanceof Error ? error.message : 'Course could not be opened.')
+    } finally {
+      setCourseLoading(false)
+    }
+  }
+
+  const markLessonComplete = async () => {
+    if (!selectedCourse?.dbId || !selectedLesson || !supabase) return
+    if (!userId) {
+      setAuthError(lang === 'bn' ? 'অগ্রগতি সংরক্ষণ করতে আগে সাইন ইন করুন।' : 'Sign in to save your progress.')
+      setAuthMode('signin')
+      setAuthOpen(true)
+      return
+    }
+    try {
+      const { error: lessonError } = await supabase.from('lesson_progress').upsert({
+        user_id: userId,
+        lesson_id: selectedLesson.id,
+        completed_at: new Date().toISOString(),
+        seconds_spent: 0,
+      }, { onConflict: 'user_id,lesson_id' })
+      if (lessonError) throw lessonError
+      const nextDone = lessonDoneIds.includes(selectedLesson.id) ? lessonDoneIds : [...lessonDoneIds, selectedLesson.id]
+      setLessonDoneIds(nextDone)
+      const progressPercent = Math.round((nextDone.length / Math.max(courseLessons.length, 1)) * 100)
+      const { error: courseProgressError } = await supabase.from('course_progress').upsert({
+        user_id: userId,
+        course_id: selectedCourse.dbId,
+        progress_percent: progressPercent,
+        completed_at: progressPercent === 100 ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,course_id' })
+      if (courseProgressError) throw courseProgressError
+      setCatalog(old => old.map(course => course.id === selectedCourse.id ? { ...course, progress: progressPercent } : course))
+      if (progressPercent === 100) setCompleted(old => old.includes(selectedCourse.id) ? old : [...old, selectedCourse.id])
+      toast(lang === 'bn' ? 'পাঠের অগ্রগতি সংরক্ষণ হয়েছে' : 'Lesson progress saved')
+    } catch (error) {
+      setCourseError(error instanceof Error ? error.message : 'Progress could not be saved.')
+    }
+  }
+
+  const toggleBookmark = async (c: Course) => {
+    const shouldSave = !saved.includes(c.id)
+    if (userId && supabase && c.dbId) {
+      const result = shouldSave
+        ? await supabase.from('bookmarks').insert({ user_id: userId, course_id: c.dbId })
+        : await supabase.from('bookmarks').delete().eq('user_id', userId).eq('course_id', c.dbId)
+      if (result.error) {
+        toast(lang === 'bn' ? 'বুকমার্ক সংরক্ষণ হয়নি' : 'Bookmark could not be saved')
+        return
+      }
+    }
+    setSaved(old => shouldSave ? [...old.filter(id => id !== c.id), c.id] : old.filter(id => id !== c.id))
+  }
+
+  const toggleChecklist = async (taskId: string) => {
+    const checked = !done.includes(taskId)
+    if (userId && supabase) {
+      const { error } = await supabase.from('learner_checklist').upsert({
+        user_id: userId, task_key: taskId, completed: checked, updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,task_key' })
+      if (error) {
+        toast(lang === 'bn' ? 'চেকলিস্ট সংরক্ষণ হয়নি' : 'Checklist could not be saved')
+        return
+      }
+    }
+    setDone(old => checked ? [...old.filter(id => id !== taskId), taskId] : old.filter(id => id !== taskId))
   }
 
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
@@ -358,7 +563,7 @@ export default function App() {
             <div className="stat-card glass">
               <div className="stat-icon green"><Trophy size={18} /></div>
               <span>{t.completed}</span>
-              <strong>{completed.length + 24} <small>/ ৪০</small></strong>
+              <strong>{completed.length} <small>/ {catalog.length}</small></strong>
             </div>
           </section>
 
@@ -379,7 +584,7 @@ export default function App() {
                   course={c}
                   lang={lang}
                   saved={saved.includes(c.id)}
-                  onSave={() => setSaved(o => o.includes(c.id) ? o.filter(x => x !== c.id) : [...o, c.id])}
+                  onSave={() => { void toggleBookmark(c) }}
                   onStart={() => startCourse(c)}
                   t={t}
                 />
@@ -443,11 +648,7 @@ export default function App() {
                     <input
                       type="checkbox"
                       checked={done.includes(task.id)}
-                      onChange={() =>
-                        setDone(o =>
-                          o.includes(task.id) ? o.filter(x => x !== task.id) : [...o, task.id]
-                        )
-                      }
+                      onChange={() => { void toggleChecklist(task.id) }}
                     />
                     <span className="custom-check"><CheckCircle2 size={16} /></span>
                     <span className="task-label">{task.label}</span>
@@ -515,6 +716,45 @@ export default function App() {
               {authMode === 'signin' ? (lang === 'bn' ? 'নতুন অ্যাকাউন্ট তৈরি করুন' : 'Create a new account') : (lang === 'bn' ? 'আগে থেকেই অ্যাকাউন্ট আছে? সাইন ইন' : 'Already have an account? Sign in')}
             </button>
             {!supabase && <p className="auth-error">{lang === 'bn' ? 'ডেমো মোড: deployment-এ Supabase URL ও publishable key সেট করা নেই।' : 'Demo mode: Supabase URL and publishable key are not configured.'}</p>}
+          </section>
+        </div>
+      )}
+
+      {selectedCourse && (
+        <div className="ai-overlay" onClick={() => { setSelectedCourse(null); setSelectedLesson(null) }}>
+          <section className="ai-sheet" role="dialog" aria-modal="true" aria-label={selectedCourse.title} onClick={event => event.stopPropagation()}>
+            <div className="ai-head">
+              <BookOpen size={20} />
+              <b>{selectedCourse.title}</b>
+              <button onClick={() => { setSelectedCourse(null); setSelectedLesson(null) }} aria-label="Close"><X size={18} /></button>
+            </div>
+            {courseLoading && <p className="ai-hint">{lang === 'bn' ? 'পাঠ লোড হচ্ছে…' : 'Loading lessons…'}</p>}
+            {courseError && <p className="auth-error" role="alert">{courseError}</p>}
+            {!courseLoading && selectedLesson && (
+              <div>
+                <button className="auth-switch" onClick={() => setSelectedLesson(null)}>{lang === 'bn' ? '← সব পাঠ' : '← All lessons'}</button>
+                <h3>{selectedLesson.title_bn}</h3>
+                <div className="ai-answer" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, maxHeight: 300, overflow: 'auto' }}>{selectedLesson.body_markdown}</div>
+                {lessonDoneIds.includes(selectedLesson.id) ? (
+                  <p className="ai-hint">{lang === 'bn' ? 'এই পাঠটি সম্পন্ন হয়েছে ✓' : 'Lesson completed ✓'}</p>
+                ) : (
+                  <button className="auth-submit" onClick={() => { void markLessonComplete() }}>{lang === 'bn' ? 'পাঠ সম্পন্ন করেছি' : 'Mark lesson complete'}</button>
+                )}
+                {!userId && <p className="ai-hint">{lang === 'bn' ? 'অগ্রগতি সংরক্ষণ করতে সাইন ইন করুন।' : 'Sign in to save progress.'}</p>}
+              </div>
+            )}
+            {!courseLoading && !selectedLesson && (
+              <div>
+                {courseLessons.length === 0 && <p className="ai-hint">{lang === 'bn' ? 'এখনও কোনো প্রকাশিত পাঠ নেই।' : 'No published lessons yet.'}</p>}
+                {courseLessons.map((lesson, index) => (
+                  <button key={lesson.id} className="mini-course" style={{ width: '100%', textAlign: 'left' }} onClick={() => setSelectedLesson(lesson)}>
+                    <div className="mini-icon blue">{lessonDoneIds.includes(lesson.id) ? '✓' : index + 1}</div>
+                    <div className="mini-info"><b>{lesson.title_bn}</b><span>{lessonDoneIds.includes(lesson.id) ? (lang === 'bn' ? 'সম্পন্ন' : 'Completed') : (lang === 'bn' ? 'পাঠ শুরু করুন' : 'Open lesson')}</span></div>
+                    <ArrowRight size={15} />
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         </div>
       )}
