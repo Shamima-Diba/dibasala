@@ -4,7 +4,7 @@ import { supabase } from './lib/supabase'
 import {
   Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, Bookmark,
   Bot, CheckCircle2, Clock3, Compass, GraduationCap, Home, Languages,
-  Menu, Moon, Play, Search, Sparkles, Sun, Target, TrendingUp, Trophy,
+  Menu, Moon, Play, Search, Sparkles, Sun, Target, TrendingUp, Trophy, CreditCard,
   WifiOff, X
 } from 'lucide-react'
 
@@ -105,6 +105,9 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [subscription, setSubscription] = useState<{ status: string; current_period_end: string | null } | null>(null)
+  const [billingBusy, setBillingBusy] = useState(false)
+  const [billingError, setBillingError] = useState('')
 
   const t = lang === 'bn' ? bn : en
 
@@ -237,6 +240,7 @@ export default function App() {
     { id: 'library', label: t.library, icon: BookOpen },
     { id: 'progress', label: t.progress, icon: TrendingUp },
     { id: 'offline', label: t.offline, icon: ArrowDownToLine },
+    { id: 'pricing', label: lang === 'bn' ? 'প্রিমিয়াম' : 'Premium', icon: CreditCard },
   ]
 
   const toast = (msg: string) => {
@@ -387,6 +391,59 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    if (!supabase || !userId) { setSubscription(null); return }
+    let cancelled = false
+    void supabase.from('subscriptions')
+      .select('status,current_period_end')
+      .eq('user_id', userId)
+      .in('status', ['active','past_due','pending'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setSubscription(data) })
+    return () => { cancelled = true }
+  }, [userId])
+
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('billing')
+    if (result === 'success') toast(lang === 'bn' ? 'পেমেন্ট যাচাই হচ্ছে। সাবস্ক্রিপশন স্ট্যাটাস কিছুক্ষণ পর দেখুন।' : 'Payment returned. Your subscription status is being verified.')
+    if (result === 'failed' || result === 'cancelled' || result === 'verification_pending') {
+      setBillingError(lang === 'bn' ? 'পেমেন্ট এখনও নিশ্চিত হয়নি। সাবস্ক্রিপশন সক্রিয় না হলে আবার চেষ্টা করুন বা সহায়তায় যোগাযোগ করুন।' : 'Payment is not confirmed yet. Retry or contact support if the status does not update.')
+    }
+  }, [])
+
+  const startCheckout = async (planSlug: 'premium_monthly' | 'premium_annual') => {
+    setBillingError('')
+    if (!supabase) { setBillingError('Supabase configuration is missing.'); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setAuthMode('signin')
+      setAuthError(lang === 'bn' ? 'Premium নিতে আগে সাইন ইন করুন।' : 'Please sign in before upgrading.')
+      setAuthOpen(true)
+      return
+    }
+    setBillingBusy(true)
+    try {
+      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/billing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabase.supabaseKey,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ planSlug }),
+      })
+      const payload = await response.json()
+      if (!response.ok || typeof payload.checkoutUrl !== 'string') throw new Error(payload.error || 'Checkout could not be started.')
+      window.location.assign(payload.checkoutUrl)
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : 'Checkout could not be started.')
+    } finally {
+      setBillingBusy(false)
+    }
+  }
+
   const signOut = async () => {
     if (!supabase) return
     const { error } = await supabase.auth.signOut()
@@ -410,9 +467,8 @@ export default function App() {
         setAuthOpen(true)
         return
       }
-      const url = import.meta.env.VITE_SUPABASE_URL
-      const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-      if (!url || !key) throw new Error(lang === 'bn' ? 'Supabase কনফিগারেশন অসম্পূর্ণ।' : 'Supabase configuration is incomplete.')
+      const url = supabase.supabaseUrl
+      const key = supabase.supabaseKey
       const res = await fetch(`${url}/functions/v1/ai-tutor`, {
         method: 'POST',
         headers: {
@@ -719,6 +775,33 @@ export default function App() {
                 {catalog.map(c => <div key={c.id} className="mini-course"><div className={`mini-icon ${c.color}`}>{c.progress >= 100 ? '✓' : c.progress + '%'}</div><div className="mini-info"><b>{c.title}</b><span>{lang === 'bn' ? `অগ্রগতি: ${c.progress}%` : `Progress: ${c.progress}%`}</span></div><button className="text-link" onClick={() => startCourse(c)}>{lang === 'bn' ? 'চালিয়ে যান' : 'Continue'} <ArrowRight size={15} /></button></div>)}
               </div>
               {!userId && <p className="ai-hint">{lang === 'bn' ? 'এই ডিভাইসের বাইরে অগ্রগতি সিঙ্ক করতে সাইন ইন করুন।' : 'Sign in to sync progress across devices.'}</p>}
+            </section>
+          )}
+          {active === 'pricing' && (
+            <section className="section-block">
+              <div className="section-heading"><div><h2>{lang === 'bn' ? 'DIBASALA Premium' : 'DIBASALA Premium'}</h2><p>{lang === 'bn' ? 'আরও গভীর শেখা, উন্নত AI সহায়তা ও বিস্তারিত অগ্রগতি।' : 'Deeper learning, expanded AI support and richer progress insights.'}</p></div></div>
+              {subscription && <div className="recommend-panel glass" style={{ padding: 18, marginBottom: 18 }}>
+                <strong>{lang === 'bn' ? 'আপনার সাবস্ক্রিপশন' : 'Your subscription'}: {subscription.status}</strong>
+                <p>{subscription.current_period_end ? (lang === 'bn' ? 'মেয়াদ শেষ: ' : 'Period ends: ') + new Date(subscription.current_period_end).toLocaleDateString() : (lang === 'bn' ? 'পেমেন্ট যাচাই/সক্রিয়করণ অপেক্ষমাণ।' : 'Payment verification/activation is pending.')}</p>
+              </div>}
+              <div className="course-grid">
+                <article className="course-card glass" style={{ padding: 22 }}>
+                  <div className="eyebrow"><Sparkles size={15} />{lang === 'bn' ? 'মাসিক প্ল্যান' : 'MONTHLY PLAN'}</div>
+                  <h2 style={{ fontSize: 32, margin: '16px 0 4px' }}>৳২৯৯<span style={{ fontSize: 14, fontWeight: 400 }}>/মাস</span></h2>
+                  <p>{lang === 'bn' ? 'প্রতি মাসে নবায়ন করুন' : 'Renew each month'}</p>
+                  <ul><li>Premium course access</li><li>Expanded AI Tutor allowance</li><li>Learning progress analytics</li><li>Priority learning plan</li></ul>
+                  <button className="auth-submit" disabled={billingBusy} onClick={() => void startCheckout('premium_monthly')}>{billingBusy ? '…' : (lang === 'bn' ? 'মাসিক প্ল্যান নিন' : 'Choose monthly')}</button>
+                </article>
+                <article className="course-card glass" style={{ padding: 22, border: '1px solid var(--accent, #7c5ce7)' }}>
+                  <div className="eyebrow"><Trophy size={15} />{lang === 'bn' ? 'সেরা মূল্য' : 'BEST VALUE'}</div>
+                  <h2 style={{ fontSize: 32, margin: '16px 0 4px' }}>৳২,৯৯০<span style={{ fontSize: 14, fontWeight: 400 }}>/বছর</span></h2>
+                  <p>{lang === 'bn' ? 'বার্ষিক পেমেন্টে দুই মাসের সমমূল্য সাশ্রয়' : 'Save the equivalent of two months'}</p>
+                  <ul><li>Everything in monthly</li><li>Premium course access</li><li>Expanded AI Tutor allowance</li><li>Annual access period</li></ul>
+                  <button className="auth-submit" disabled={billingBusy} onClick={() => void startCheckout('premium_annual')}>{billingBusy ? '…' : (lang === 'bn' ? 'বার্ষিক প্ল্যান নিন' : 'Choose annual')}</button>
+                </article>
+              </div>
+              {billingError && <p className="auth-error" role="alert">{billingError}</p>}
+              <p className="ai-hint">{lang === 'bn' ? 'পেমেন্ট SSLCOMMERZ-এর সুরক্ষিত checkout-এ হবে। পেমেন্ট যাচাই না হওয়া পর্যন্ত Premium সক্রিয় হবে না। বর্তমানে auto-renewal নয়—মেয়াদ শেষে হাতে নবায়ন করতে হবে।' : 'Checkout is hosted by SSLCOMMERZ. Premium is activated only after server-side payment validation. Auto-renewal is not enabled; renew manually after expiry.'}</p>
             </section>
           )}
           {active === 'offline' && (
