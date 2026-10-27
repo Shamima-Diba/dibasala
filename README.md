@@ -14,7 +14,7 @@
 
 ## Run frontend
 
-Requirements: Node.js 20+ and npm.
+Requirements: Node.js 22+ and npm.
 
 ```bash
 cd apps/web

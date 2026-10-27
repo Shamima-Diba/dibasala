@@ -25,3 +25,19 @@
 .course-card:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(31,38,135,.12)}
 .stat-card.glass{border-radius:18px}
 .is-dark .course-cta,.is-dark .ai-launch,.is-dark .ai-fab{box-shadow:0 8px 28px rgba(113,88,232,.45)}
+
+
+/* Supabase authentication controls */
+.auth-trigger{border:1px solid var(--line,#e8eaf2);background:var(--surface,#fff);color:var(--ink,#30354a);border-radius:10px;padding:9px 12px;font:inherit;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.account-actions{display:flex;align-items:center;gap:8px;max-width:260px}
+.account-email{max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#8a90a3);font-size:10px}
+.auth-sheet{width:min(440px,calc(100% - 28px));margin:auto;background:var(--surface,#fff);color:var(--ink,#30354a);border:1px solid var(--line,#e8eaf2);border-radius:22px;padding:22px;box-shadow:0 20px 70px #10152b35}
+.auth-form{display:grid;gap:13px}
+.auth-form label{display:grid;gap:6px;color:var(--muted,#73788b);font-size:12px;font-weight:600}
+.auth-form input{width:100%;box-sizing:border-box;padding:12px 13px;border:1px solid var(--line,#e8eaf2);border-radius:10px;background:var(--surface,#fff);color:var(--ink,#30354a);font:inherit;font-size:14px}
+.auth-submit{border:0;border-radius:11px;background:linear-gradient(135deg,#7158e8,#9b6dff);color:white;padding:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.auth-submit:disabled{opacity:.65;cursor:wait}
+.auth-switch{width:100%;margin-top:14px;padding:8px;border:0;background:transparent;color:#7158e8;font:inherit;font-size:12px;cursor:pointer}
+.auth-error{padding:10px 12px;border-radius:10px;background:#fff0ef;color:#b42318;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.is-dark .auth-trigger,.is-dark .auth-form input{background:#151922;color:#e8eaf2;border-color:#2a2f3d}
+@media(max-width:760px){.account-email{display:none}.account-actions{max-width:none}.auth-trigger{padding:8px 9px;font-size:10px}}
