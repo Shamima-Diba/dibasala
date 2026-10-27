@@ -1,9 +1,14 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const allowedOrigins = (Deno.env.get('ALLOWED_ORIGINS') ?? '')
+const configuredOrigins = (Deno.env.get('ALLOWED_ORIGINS') ?? '')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
+// Exact deployed origin allowlist; keep origins explicit (never use '*').
+const allowedOrigins = [...new Set([
+  'https://dibasala-pw1vnac27-shamima-diba.vercel.app',
+  ...configuredOrigins,
+])];
 
 function corsHeaders(origin: string | null): Record<string, string> {
   const headers: Record<string, string> = {
