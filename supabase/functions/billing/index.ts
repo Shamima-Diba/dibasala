@@ -106,12 +106,13 @@ Deno.serve(async (request) => {
 
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, origin);
   if (origin && !allowedOrigins.has(origin)) return json({ error: 'Origin not allowed' }, 403, origin);
-  if (!serviceKey || !anonKey || !storeId || !storePassword) return json({ error: 'Billing is not configured. Contact support.' }, 503, origin);
+  if (!serviceKey || !anonKey) return json({ error: 'Billing backend is not configured. Contact support.' }, 503, origin);
   const authHeader = request.headers.get('authorization') ?? '';
   if (!authHeader.startsWith('Bearer ')) return json({ error: 'Sign in required' }, 401, origin);
   const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false, autoRefreshToken: false } });
   const { data: { user }, error: authError } = await userClient.auth.getUser();
   if (authError || !user) return json({ error: 'Invalid session' }, 401, origin);
+  if (!storeId || !storePassword) return json({ error: 'SSLCOMMERZ merchant credentials are not configured yet.' }, 503, origin);
   let body: { planSlug?: string };
   try { body = await request.json(); } catch { return json({ error: 'Invalid request' }, 400, origin); }
   const planSlug = body.planSlug;
