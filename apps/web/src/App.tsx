@@ -108,6 +108,8 @@ export default function App() {
   const [subscription, setSubscription] = useState<{ status: string; current_period_end: string | null } | null>(null)
   const [billingBusy, setBillingBusy] = useState(false)
   const [billingError, setBillingError] = useState('')
+  const [accessCode, setAccessCode] = useState('')
+  const [codeBusy, setCodeBusy] = useState(false)
 
   const t = lang === 'bn' ? bn : en
 
@@ -444,6 +446,40 @@ export default function App() {
     }
   }
 
+  const redeemAccessCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setBillingError('')
+    if (!supabase) { setBillingError('Supabase configuration is missing.'); return }
+    const code = accessCode.trim().toUpperCase()
+    if (!code) { setBillingError(lang === 'bn' ? 'অ্যাক্সেস কোড লিখুন।' : 'Enter your access code.'); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setAuthMode('signin')
+      setAuthError(lang === 'bn' ? 'কোড ব্যবহার করতে আগে সাইন ইন করুন।' : 'Please sign in to redeem a code.')
+      setAuthOpen(true)
+      return
+    }
+    setCodeBusy(true)
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/premium-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: supabasePublishableKey, Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ code }),
+      })
+      const payload = await response.json()
+      if (!response.ok || payload.ok !== true) throw new Error(payload.error || 'Code could not be redeemed.')
+      setAccessCode('')
+      setBillingError('')
+      toast(lang === 'bn' ? 'Premium সফলভাবে সক্রিয় হয়েছে!' : 'Premium activated successfully!')
+      const { data: row } = await supabase.from('subscriptions').select('status,current_period_end').eq('user_id', session.user.id).eq('status', 'active').order('current_period_end', { ascending: false }).limit(1).maybeSingle()
+      if (row) setSubscription({ status: row.status, current_period_end: row.current_period_end })
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : 'Code could not be redeemed.')
+    } finally {
+      setCodeBusy(false)
+    }
+  }
+
   const signOut = async () => {
     if (!supabase) return
     const { error } = await supabase.auth.signOut()
@@ -777,29 +813,25 @@ export default function App() {
           )}
           {active === 'pricing' && (
             <section className="section-block">
-              <div className="section-heading"><div><h2>{lang === 'bn' ? 'DIBASALA Premium' : 'DIBASALA Premium'}</h2><p>{lang === 'bn' ? 'আরও গভীর শেখা, উন্নত AI সহায়তা ও বিস্তারিত অগ্রগতি।' : 'Deeper learning, expanded AI support and richer progress insights.'}</p></div></div>
+              <div className="section-heading"><div><h2>DIBASALA Premium / Pro</h2><p>{lang === 'bn' ? 'পেমেন্ট গেটওয়ে প্রস্তুত না হওয়া পর্যন্ত নির্ধারিত অ্যাক্সেস কোড দিয়ে Premium চালু করুন।' : 'Use an access code assigned by the DIBASALA team while payment checkout is paused.'}</p></div></div>
               {subscription && <div className="recommend-panel glass" style={{ padding: 18, marginBottom: 18 }}>
-                <strong>{lang === 'bn' ? 'আপনার সাবস্ক্রিপশন' : 'Your subscription'}: {subscription.status}</strong>
-                <p>{subscription.current_period_end ? (lang === 'bn' ? 'মেয়াদ শেষ: ' : 'Period ends: ') + new Date(subscription.current_period_end).toLocaleDateString() : (lang === 'bn' ? 'পেমেন্ট যাচাই/সক্রিয়করণ অপেক্ষমাণ।' : 'Payment verification/activation is pending.')}</p>
+                <strong>{lang === 'bn' ? 'আপনার অ্যাক্সেস' : 'Your access'}: {subscription.status}</strong>
+                <p>{subscription.current_period_end ? (lang === 'bn' ? 'মেয়াদ শেষ: ' : 'Access ends: ') + new Date(subscription.current_period_end).toLocaleDateString() : (lang === 'bn' ? 'কোনো সক্রিয় অ্যাক্সেস নেই।' : 'No active access yet.')}</p>
               </div>}
               <div className="course-grid">
-                <article className="course-card glass" style={{ padding: 22 }}>
-                  <div className="eyebrow"><Sparkles size={15} />{lang === 'bn' ? 'মাসিক প্ল্যান' : 'MONTHLY PLAN'}</div>
-                  <h2 style={{ fontSize: 32, margin: '16px 0 4px' }}>৳২৯৯<span style={{ fontSize: 14, fontWeight: 400 }}>/মাস</span></h2>
-                  <p>{lang === 'bn' ? 'প্রতি মাসে নবায়ন করুন' : 'Renew each month'}</p>
-                  <ul><li>Premium course access</li><li>Expanded AI Tutor allowance</li><li>Learning progress analytics</li><li>Priority learning plan</li></ul>
-                  <button className="auth-submit" disabled={billingBusy} onClick={() => void startCheckout('premium_monthly')}>{billingBusy ? '…' : (lang === 'bn' ? 'মাসিক প্ল্যান নিন' : 'Choose monthly')}</button>
-                </article>
-                <article className="course-card glass" style={{ padding: 22, border: '1px solid var(--accent, #7c5ce7)' }}>
-                  <div className="eyebrow"><Trophy size={15} />{lang === 'bn' ? 'সেরা মূল্য' : 'BEST VALUE'}</div>
-                  <h2 style={{ fontSize: 32, margin: '16px 0 4px' }}>৳২,৯৯০<span style={{ fontSize: 14, fontWeight: 400 }}>/বছর</span></h2>
-                  <p>{lang === 'bn' ? 'বার্ষিক পেমেন্টে দুই মাসের সমমূল্য সাশ্রয়' : 'Save the equivalent of two months'}</p>
-                  <ul><li>Everything in monthly</li><li>Premium course access</li><li>Expanded AI Tutor allowance</li><li>Annual access period</li></ul>
-                  <button className="auth-submit" disabled={billingBusy} onClick={() => void startCheckout('premium_annual')}>{billingBusy ? '…' : (lang === 'bn' ? 'বার্ষিক প্ল্যান নিন' : 'Choose annual')}</button>
+                <article className="course-card glass" style={{ padding: 22, maxWidth: 680 }}>
+                  <div className="eyebrow"><Sparkles size={15} />{lang === 'bn' ? 'প্রিমিয়াম অ্যাক্সেস কোড' : 'PREMIUM ACCESS CODE'}</div>
+                  <h3 style={{ margin: '14px 0 8px' }}>{lang === 'bn' ? 'আপনার কোড দিয়ে Premium / Pro চালু করুন' : 'Activate Premium / Pro with your code'}</h3>
+                  <p>{lang === 'bn' ? 'DIBASALA টিমের দেওয়া কোড ব্যবহার করুন। কোডটি আপনার অ্যাকাউন্টে নির্ধারিত মেয়াদের অ্যাক্সেস সক্রিয় করবে।' : 'Enter a code provided by the DIBASALA team. Each code activates access for its assigned duration.'}</p>
+                  <form onSubmit={(event) => void redeemAccessCode(event)} style={{ display: 'grid', gap: 12, marginTop: 18 }}>
+                    <input aria-label={lang === 'bn' ? 'অ্যাক্সেস কোড' : 'Access code'} value={accessCode} onChange={event => setAccessCode(event.target.value.toUpperCase())} placeholder={lang === 'bn' ? 'আপনার অ্যাক্সেস কোড লিখুন' : 'Enter access code'} autoComplete="off" maxLength={100} required />
+                    <button className="auth-submit" disabled={codeBusy}>{codeBusy ? (lang === 'bn' ? 'যাচাই হচ্ছে…' : 'Verifying…') : (lang === 'bn' ? 'কোড যাচাই ও সক্রিয় করুন' : 'Verify and activate')}</button>
+                  </form>
+                  {!userId && <p className="ai-hint">{lang === 'bn' ? 'কোড ব্যবহারের আগে সাইন ইন বা অ্যাকাউন্ট তৈরি করুন।' : 'Sign in or create an account before redeeming a code.'}</p>}
                 </article>
               </div>
               {billingError && <p className="auth-error" role="alert">{billingError}</p>}
-              <p className="ai-hint">{lang === 'bn' ? 'পেমেন্ট SSLCOMMERZ-এর সুরক্ষিত checkout-এ হবে। পেমেন্ট যাচাই না হওয়া পর্যন্ত Premium সক্রিয় হবে না। বর্তমানে auto-renewal নয়—মেয়াদ শেষে হাতে নবায়ন করতে হবে।' : 'Checkout is hosted by SSLCOMMERZ. Premium is activated only after server-side payment validation. Auto-renewal is not enabled; renew manually after expiry.'}</p>
+              <p className="ai-hint">{lang === 'bn' ? 'এই মুহূর্তে অনলাইন পেমেন্ট checkout বন্ধ রাখা হয়েছে; শেখার অন্যান্য ফিচার ব্যবহার করা যাবে। অ্যাক্সেস কোড শুধুমাত্র সার্ভারে যাচাই হয়। কোড তৈরির ও মেয়াদ/ব্যবহারসীমা নির্ধারণের নিয়ন্ত্রণ DIBASALA অ্যাডমিনের হাতে থাকবে।' : 'Online payment checkout is paused for now; other learning features remain available. Codes are validated server-side and managed by DIBASALA administrators with configurable duration and redemption limits.'}</p>
             </section>
           )}
           {active === 'offline' && (
