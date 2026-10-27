@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { supabase } from './lib/supabase'
+import { supabase, supabaseUrl, supabasePublishableKey } from './lib/supabase'
 import {
   Activity, ArrowDownToLine, ArrowRight, Bell, BookOpen, Bookmark,
   Bot, CheckCircle2, Clock3, Compass, GraduationCap, Home, Languages,
-  Menu, Moon, Play, Search, Sparkles, Sun, Target, TrendingUp, Trophy,
+  Menu, Moon, Play, Search, Sparkles, Sun, Target, TrendingUp, Trophy, CreditCard,
   WifiOff, X
 } from 'lucide-react'
 
@@ -105,6 +105,11 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [subscription, setSubscription] = useState<{ status: string; current_period_end: string | null } | null>(null)
+  const [billingBusy, setBillingBusy] = useState(false)
+  const [billingError, setBillingError] = useState('')
+  const [accessCode, setAccessCode] = useState('')
+  const [codeBusy, setCodeBusy] = useState(false)
 
   const t = lang === 'bn' ? bn : en
 
@@ -237,6 +242,7 @@ export default function App() {
     { id: 'library', label: t.library, icon: BookOpen },
     { id: 'progress', label: t.progress, icon: TrendingUp },
     { id: 'offline', label: t.offline, icon: ArrowDownToLine },
+    { id: 'pricing', label: lang === 'bn' ? 'প্রিমিয়াম' : 'Premium', icon: CreditCard },
   ]
 
   const toast = (msg: string) => {
@@ -387,6 +393,93 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    if (!supabase || !userId) { setSubscription(null); return }
+    let cancelled = false
+    void supabase.from('subscriptions')
+      .select('status,current_period_end')
+      .eq('user_id', userId)
+      .in('status', ['active','past_due','pending'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setSubscription(data) })
+    return () => { cancelled = true }
+  }, [userId])
+
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('billing')
+    if (result === 'success') toast(lang === 'bn' ? 'পেমেন্ট যাচাই হচ্ছে। সাবস্ক্রিপশন স্ট্যাটাস কিছুক্ষণ পর দেখুন।' : 'Payment returned. Your subscription status is being verified.')
+    if (result === 'failed' || result === 'cancelled' || result === 'verification_pending') {
+      setBillingError(lang === 'bn' ? 'পেমেন্ট এখনও নিশ্চিত হয়নি। সাবস্ক্রিপশন সক্রিয় না হলে আবার চেষ্টা করুন বা সহায়তায় যোগাযোগ করুন।' : 'Payment is not confirmed yet. Retry or contact support if the status does not update.')
+    }
+  }, [])
+
+  const startCheckout = async (planSlug: 'premium_monthly' | 'premium_annual') => {
+    setBillingError('')
+    if (!supabase) { setBillingError('Supabase configuration is missing.'); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setAuthMode('signin')
+      setAuthError(lang === 'bn' ? 'Premium নিতে আগে সাইন ইন করুন।' : 'Please sign in before upgrading.')
+      setAuthOpen(true)
+      return
+    }
+    setBillingBusy(true)
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/billing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabasePublishableKey,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ planSlug }),
+      })
+      const payload = await response.json()
+      if (!response.ok || typeof payload.checkoutUrl !== 'string') throw new Error(payload.error || 'Checkout could not be started.')
+      window.location.assign(payload.checkoutUrl)
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : 'Checkout could not be started.')
+    } finally {
+      setBillingBusy(false)
+    }
+  }
+
+  const redeemAccessCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setBillingError('')
+    if (!supabase) { setBillingError('Supabase configuration is missing.'); return }
+    const code = accessCode.trim().toUpperCase()
+    if (!code) { setBillingError(lang === 'bn' ? 'অ্যাক্সেস কোড লিখুন।' : 'Enter your access code.'); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setAuthMode('signin')
+      setAuthError(lang === 'bn' ? 'কোড ব্যবহার করতে আগে সাইন ইন করুন।' : 'Please sign in to redeem a code.')
+      setAuthOpen(true)
+      return
+    }
+    setCodeBusy(true)
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/premium-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: supabasePublishableKey, Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ code }),
+      })
+      const payload = await response.json()
+      if (!response.ok || payload.ok !== true) throw new Error(payload.error || 'Code could not be redeemed.')
+      setAccessCode('')
+      setBillingError('')
+      toast(lang === 'bn' ? 'Premium সফলভাবে সক্রিয় হয়েছে!' : 'Premium activated successfully!')
+      const { data: row } = await supabase.from('subscriptions').select('status,current_period_end').eq('user_id', session.user.id).eq('status', 'active').order('current_period_end', { ascending: false }).limit(1).maybeSingle()
+      if (row) setSubscription({ status: row.status, current_period_end: row.current_period_end })
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : 'Code could not be redeemed.')
+    } finally {
+      setCodeBusy(false)
+    }
+  }
+
   const signOut = async () => {
     if (!supabase) return
     const { error } = await supabase.auth.signOut()
@@ -410,14 +503,11 @@ export default function App() {
         setAuthOpen(true)
         return
       }
-      const url = import.meta.env.VITE_SUPABASE_URL
-      const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-      if (!url || !key) throw new Error(lang === 'bn' ? 'Supabase কনফিগারেশন অসম্পূর্ণ।' : 'Supabase configuration is incomplete.')
-      const res = await fetch(`${url}/functions/v1/ai-tutor`, {
+      const res = await fetch(`${supabaseUrl}/functions/v1/ai-tutor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          apikey: key,
+          apikey: supabasePublishableKey,
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ question: aiQ.trim() }),
@@ -719,6 +809,29 @@ export default function App() {
                 {catalog.map(c => <div key={c.id} className="mini-course"><div className={`mini-icon ${c.color}`}>{c.progress >= 100 ? '✓' : c.progress + '%'}</div><div className="mini-info"><b>{c.title}</b><span>{lang === 'bn' ? `অগ্রগতি: ${c.progress}%` : `Progress: ${c.progress}%`}</span></div><button className="text-link" onClick={() => startCourse(c)}>{lang === 'bn' ? 'চালিয়ে যান' : 'Continue'} <ArrowRight size={15} /></button></div>)}
               </div>
               {!userId && <p className="ai-hint">{lang === 'bn' ? 'এই ডিভাইসের বাইরে অগ্রগতি সিঙ্ক করতে সাইন ইন করুন।' : 'Sign in to sync progress across devices.'}</p>}
+            </section>
+          )}
+          {active === 'pricing' && (
+            <section className="section-block">
+              <div className="section-heading"><div><h2>DIBASALA Premium / Pro</h2><p>{lang === 'bn' ? 'পেমেন্ট গেটওয়ে প্রস্তুত না হওয়া পর্যন্ত নির্ধারিত অ্যাক্সেস কোড দিয়ে Premium চালু করুন।' : 'Use an access code assigned by the DIBASALA team while payment checkout is paused.'}</p></div></div>
+              {subscription && <div className="recommend-panel glass" style={{ padding: 18, marginBottom: 18 }}>
+                <strong>{lang === 'bn' ? 'আপনার অ্যাক্সেস' : 'Your access'}: {subscription.status}</strong>
+                <p>{subscription.current_period_end ? (lang === 'bn' ? 'মেয়াদ শেষ: ' : 'Access ends: ') + new Date(subscription.current_period_end).toLocaleDateString() : (lang === 'bn' ? 'কোনো সক্রিয় অ্যাক্সেস নেই।' : 'No active access yet.')}</p>
+              </div>}
+              <div className="course-grid">
+                <article className="course-card glass" style={{ padding: 22, maxWidth: 680 }}>
+                  <div className="eyebrow"><Sparkles size={15} />{lang === 'bn' ? 'প্রিমিয়াম অ্যাক্সেস কোড' : 'PREMIUM ACCESS CODE'}</div>
+                  <h3 style={{ margin: '14px 0 8px' }}>{lang === 'bn' ? 'আপনার কোড দিয়ে Premium / Pro চালু করুন' : 'Activate Premium / Pro with your code'}</h3>
+                  <p>{lang === 'bn' ? 'DIBASALA টিমের দেওয়া কোড ব্যবহার করুন। কোডটি আপনার অ্যাকাউন্টে নির্ধারিত মেয়াদের অ্যাক্সেস সক্রিয় করবে।' : 'Enter a code provided by the DIBASALA team. Each code activates access for its assigned duration.'}</p>
+                  <form onSubmit={(event) => void redeemAccessCode(event)} style={{ display: 'grid', gap: 12, marginTop: 18 }}>
+                    <input aria-label={lang === 'bn' ? 'অ্যাক্সেস কোড' : 'Access code'} value={accessCode} onChange={event => setAccessCode(event.target.value.toUpperCase())} placeholder={lang === 'bn' ? 'আপনার অ্যাক্সেস কোড লিখুন' : 'Enter access code'} autoComplete="off" maxLength={100} required />
+                    <button className="auth-submit" disabled={codeBusy}>{codeBusy ? (lang === 'bn' ? 'যাচাই হচ্ছে…' : 'Verifying…') : (lang === 'bn' ? 'কোড যাচাই ও সক্রিয় করুন' : 'Verify and activate')}</button>
+                  </form>
+                  {!userId && <p className="ai-hint">{lang === 'bn' ? 'কোড ব্যবহারের আগে সাইন ইন বা অ্যাকাউন্ট তৈরি করুন।' : 'Sign in or create an account before redeeming a code.'}</p>}
+                </article>
+              </div>
+              {billingError && <p className="auth-error" role="alert">{billingError}</p>}
+              <p className="ai-hint">{lang === 'bn' ? 'এই মুহূর্তে অনলাইন পেমেন্ট checkout বন্ধ রাখা হয়েছে; শেখার অন্যান্য ফিচার ব্যবহার করা যাবে। অ্যাক্সেস কোড শুধুমাত্র সার্ভারে যাচাই হয়। কোড তৈরির ও মেয়াদ/ব্যবহারসীমা নির্ধারণের নিয়ন্ত্রণ DIBASALA অ্যাডমিনের হাতে থাকবে।' : 'Online payment checkout is paused for now; other learning features remain available. Codes are validated server-side and managed by DIBASALA administrators with configurable duration and redemption limits.'}</p>
             </section>
           )}
           {active === 'offline' && (
