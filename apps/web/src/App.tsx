@@ -87,7 +87,6 @@ export default function App() {
   const [done, setDone] = useState<string[]>(() => readState('dibasala-tasks', []))
   const [completed, setCompleted] = useState<number[]>(() => readState('dibasala-completed', []))
   const [userId, setUserId] = useState<string | null>(null)
-  const [hydratedUserId, setHydratedUserId] = useState<string | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [courseLessons, setCourseLessons] = useState<Lesson[]>([])
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
@@ -173,7 +172,6 @@ export default function App() {
       setSaved(readState('dibasala-saved', [2]))
       setDone(readState('dibasala-tasks', []))
       setCompleted(readState('dibasala-completed', []))
-      setHydratedUserId(null)
       return
     }
     if (!supabase || !catalog.length || !catalog.every(course => course.dbId)) return
@@ -199,7 +197,6 @@ export default function App() {
         return row ? { ...course, progress: row.progress_percent } : { ...course, progress: 0 }
       }))
       setDone((checklist ?? []).filter(row => row.completed).map(row => row.task_key))
-      setHydratedUserId(userId)
     }
     void loadLearnerState()
     return () => { cancelled = true }
