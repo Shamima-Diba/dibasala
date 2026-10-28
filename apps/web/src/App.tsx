@@ -109,6 +109,7 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [displayName, setDisplayName] = useState('শিক্ষার্থী')
   const [quizOpen, setQuizOpen] = useState(false)
   const [quizList, setQuizList] = useState<Quiz[]>([])
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
@@ -123,14 +124,18 @@ export default function App() {
 
   useEffect(() => {
     if (!supabase) return
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) setAuthError(error.message)
-      setUserEmail(data.session?.user.email ?? null)
-      setUserId(data.session?.user.id ?? null)
+    const applyUser = (user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null) => {
+      setUserEmail(user?.email ?? null)
+      setUserId(user?.id ?? null)
+      const fullName = user?.user_metadata?.full_name
+      setDisplayName(typeof fullName === 'string' && fullName.trim() ? fullName.trim() : user?.email?.split('@')[0] || 'শিক্ষার্থী')
+    }
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (error) setAuthError('আপনার সাইন-ইন অবস্থা যাচাই করা যায়নি।')
+      applyUser(data.user)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user.email ?? null)
-      setUserId(session?.user.id ?? null)
+      applyUser(session?.user ?? null)
       setAuthError('')
     })
     return () => subscription.unsubscribe()
@@ -162,18 +167,19 @@ export default function App() {
         setNotice('পাঠের ডেটা লোড করা যায়নি। পরে আবার চেষ্টা করুন।')
         return
       }
-      const mapped = courseRows.flatMap(row => {
-        const template = COURSES.find(course => course.slug === row.slug)
-        if (!template) return []
-        return [{
-          ...template,
-          dbId: row.id,
-          title: row.title_bn,
-          subject: row.subject,
-          grade: `${row.grade_level}ম শ্রেণি`,
-          lessons: lessonRows.filter(lesson => lesson.course_id === row.id).length,
-          progress: 0,
-        }]
+      const mapped: Course[] = courseRows.map((row, index) => {
+        const subject = row.subject || 'অন্যান্য'
+        const palette = subject.includes('গণিত') ? { color: 'violet', icon: '∑' }
+          : subject.includes('বিজ্ঞান') || subject.includes('পদার্থ') ? { color: 'blue', icon: '⚛' }
+          : subject.includes('ইংরেজি') ? { color: 'orange', icon: 'Aa' }
+          : { color: 'green', icon: '📘' }
+        const lessonCount = lessonRows.filter(lesson => lesson.course_id === row.id).length
+        return {
+          id: index + 1, dbId: row.id, slug: row.slug, title: row.title_bn,
+          subject, grade: `${row.grade_level}ম শ্রেণি`, lessons: lessonCount,
+          progress: 0, ...palette,
+          duration: lessonCount ? `${lessonCount}টি পাঠ` : 'পাঠ শিগগিরই আসছে',
+        }
       })
       setCatalog(mapped)
     }
@@ -490,7 +496,7 @@ export default function App() {
   const askAI = async () => {
     if (!aiQ.trim()) return
     if (!supabase) {
-      setAiAnswer(lang === 'bn' ? 'AI টিউটর চালু করতে Supabase environment সেট করুন।' : 'Configure Supabase environment to enable AI Tutor.')
+      setAiAnswer(lang === 'bn' ? 'AI Tutor কনফিগার করা হয়নি, পরে চেষ্টা করুন।' : 'AI Tutor is not configured. Please try again later.')
       return
     }
     setAiLoading(true)
@@ -549,7 +555,7 @@ export default function App() {
         <div className="profile-mini">
           <div className="avatar">আ</div>
           <div className="profile-text">
-            <b>{lang === 'bn' ? 'আরিফ হাসান' : 'Arif Hasan'}</b>
+            <b>{displayName}</b>
             <span>{lang === 'bn' ? '৯ম শ্রেণি · SSC 2028' : 'Grade 9 · SSC 2028'}</span>
           </div>
         </div>
@@ -640,19 +646,20 @@ export default function App() {
             <div className="stat-card glass">
               <div className="stat-icon purple"><Target size={18} /></div>
               <span>{t.today}</span>
-              <strong>৩৫ <small>/ ৪৫</small></strong>
-              <div className="progress-track"><div className="progress-fill purple-fill" style={{ width: '78%' }} /></div>
+              <strong>{done.length} <small>/ ৩</small></strong>
+              <div className="progress-track"><div className="progress-fill purple-fill" style={{ width: `${Math.min(100, (done.length / 3) * 100)}%` }} /></div>
             </div>
             <div className="stat-card glass">
               <div className="stat-icon orange"><Clock3 size={18} /></div>
               <span>{t.minutes}</span>
-              <strong>১২৮</strong>
-              <em className="positive">+১৮%</em>
+              <strong>—</strong>
+              <em>{lang === 'bn' ? 'সময় ট্র্যাকিং চালু হয়নি' : 'Time tracking not enabled'}</em>
             </div>
             <div className="stat-card glass">
               <div className="stat-icon pink"><Sparkles size={18} /></div>
               <span>{t.streak}</span>
-              <strong>৭ <small>{lang === 'bn' ? 'দিন' : 'days'}</small></strong>
+              <strong>—</strong>
+              <em>{lang === 'bn' ? 'ধারাবাহিকতার তথ্য নেই' : 'Streak data unavailable'}</em>
             </div>
             <div className="stat-card glass">
               <div className="stat-icon green"><Trophy size={18} /></div>
@@ -773,7 +780,7 @@ export default function App() {
               <b>{t.notes}</b>
               <ArrowRight size={15} />
             </button>
-            <button onClick={() => toast(lang === 'bn' ? 'সাপ্তাহিক প্ল্যান ডেমো' : 'Weekly plan demo')}>
+            <button onClick={() => { setActive('progress'); toast(lang === 'bn' ? 'আপনার সংরক্ষিত অগ্রগতি দেখুন' : 'View your saved progress') }}>
               <span className="quick-icon green"><Activity size={18} /></span>
               <b>{t.plan}</b>
               <ArrowRight size={15} />
