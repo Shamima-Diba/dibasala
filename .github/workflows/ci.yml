@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix/ready-deploy-final]
   pull_request:
-    branches: [main]
+    branches: [main, fix/ready-deploy-final]
 
 # Cancel superseded runs on the same ref instead of burning minutes
 concurrency:
@@ -38,4 +38,35 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: |
+          set +e
+          npm run build > build.log 2>&1
+          status=$?
+          cat build.log
+          exit "$status"
+
+      - name: Copy build log
+        if: always()
+        working-directory: .
+        run: cp apps/web/build.log build.log || true
+
+      - name: Package production readiness archive
+        if: success()
+        working-directory: .
+        run: |
+          zip -qr dibasala-production-ready-ruamhcchaeogodsltskw.zip \
+            apps/web/src apps/web/dist supabase/migrations supabase/functions \
+            SOURCE_MAP.md CURRENT_STATE.md DEPLOY_READINESS.md ROLLBACK.md build.log
+          sha256sum dibasala-production-ready-ruamhcchaeogodsltskw.zip > dibasala-production-ready-ruamhcchaeogodsltskw.zip.sha256
+
+      - name: Upload production readiness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dibasala-production-readiness
+          path: |
+            build.log
+            dibasala-production-ready-ruamhcchaeogodsltskw.zip
+            dibasala-production-ready-ruamhcchaeogodsltskw.zip.sha256
+          if-no-files-found: warn
+          retention-days: 14

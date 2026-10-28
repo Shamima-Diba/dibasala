@@ -93,7 +93,7 @@ Deno.serve(async (request: Request) => {
   const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
   const model = Deno.env.get('GEMINI_MODEL');
   if (!supabaseUrl || !publishableKey || !geminiApiKey || !model) {
-    return jsonResponse({ error: 'AI service is not configured' }, 503, cors);
+    return jsonResponse({ error: 'AI Tutor কনফিগার করা হয়নি, পরে চেষ্টা করুন' }, 503, cors);
   }
 
   const supabase = createClient(supabaseUrl, publishableKey, {

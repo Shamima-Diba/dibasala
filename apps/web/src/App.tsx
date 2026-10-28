@@ -22,16 +22,9 @@ type Course = {
   dbId?: string
 }
 
-const COURSES: Course[] = [
-  { id: 1, slug: 'algebra-foundations', title: 'গণিত: বীজগণিতের ভিত্তি', subject: 'গণিত', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'violet', icon: '∑', duration: '১০ মিনিট' },
-  { id: 2, slug: 'force-and-motion', title: 'পদার্থবিজ্ঞান: বল ও গতি', subject: 'বিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'blue', icon: '⚛', duration: '১০ মিনিট' },
-  { id: 3, slug: 'english-grammar-essentials', title: 'ইংরেজি Grammar Essentials', subject: 'ইংরেজি', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'orange', icon: 'Aa', duration: '১০ মিনিট' },
-  { id: 4, slug: 'bangladesh-world-identity', title: 'বাংলাদেশ ও বিশ্বপরিচয়', subject: 'সমাজবিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'green', icon: '🌏', duration: '১০ মিনিট' },
-]
-
 const bn = {
   home: 'হোম', learn: 'শিখুন', library: 'লাইব্রেরি', progress: 'অগ্রগতি', offline: 'অফলাইন',
-  greeting: 'আবার স্বাগতম, আরিফ! 👋', sub: 'আজ একটু একটু করে এগিয়ে যাওয়াই বড় সাফল্য।',
+  greeting: 'আবার স্বাগতম! 👋', sub: 'আজ একটু একটু করে এগিয়ে যাওয়াই বড় সাফল্য।',
   search: 'কী শিখতে চাও? বিষয় বা কোর্স খুঁজুন', continue: 'পড়াশোনা চালিয়ে যাও', seeAll: 'সব দেখুন',
   today: 'আজকের লক্ষ্য', minutes: 'মিনিট পড়া', streak: 'ধারাবাহিকতা', completed: 'সম্পন্ন পাঠ',
   recommended: 'তোমার জন্য সাজেস্ট', all: 'সব', math: 'গণিত', science: 'বিজ্ঞান', english: 'ইংরেজি', social: 'সমাজ',
@@ -48,7 +41,7 @@ type Lesson = { id: string; course_id: string; title_bn: string; title_en: strin
 
 const en = {
   home: 'Home', learn: 'Explore', library: 'Library', progress: 'Progress', offline: 'Offline',
-  greeting: 'Welcome back, Arif! 👋', sub: 'Small steps every day lead to big progress.',
+  greeting: 'Welcome back! 👋', sub: 'Small steps every day lead to big progress.',
   search: 'What do you want to learn?', continue: 'Continue learning', seeAll: 'See all',
   today: "Today's goal", minutes: 'Minutes', streak: 'Streak', completed: 'Completed',
   recommended: 'Recommended', all: 'All', math: 'Math', science: 'Science', english: 'English', social: 'Social',
@@ -82,11 +75,12 @@ export default function App() {
   const [filter, setFilter] = useState('all')
   const [menu, setMenu] = useState(false)
   const [dark, setDark] = useState(false)
-  const [catalog, setCatalog] = useState<Course[]>(supabase ? [] : COURSES)
+  const [catalog, setCatalog] = useState<Course[]>([])
   const [saved, setSaved] = useState<number[]>(() => readState('dibasala-saved', []))
   const [done, setDone] = useState<string[]>(() => readState('dibasala-tasks', []))
   const [completed, setCompleted] = useState<number[]>(() => readState('dibasala-completed', []))
   const [userId, setUserId] = useState<string | null>(null)
+  const [displayName, setDisplayName] = useState('')
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [courseLessons, setCourseLessons] = useState<Lesson[]>([])
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
@@ -124,13 +118,32 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (!supabase || !userId) {
+      setDisplayName('')
+      return
+    }
+    let cancelled = false
+    supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return
+        const name = data?.display_name?.trim()
+        setDisplayName(!error && name ? name : (lang === 'bn' ? 'শিক্ষার্থী' : 'Learner'))
+      })
+    return () => { cancelled = true }
+  }, [userId, lang])
+
+  useEffect(() => {
     const client = supabase
     if (!client) return
     let cancelled = false
     const loadCatalog = async () => {
       const { data: courseRows, error: courseError } = await client
         .from('courses')
-        .select('id, slug, title_bn, subject, grade_level')
+        .select('*')
         .eq('status', 'published')
         .order('created_at', { ascending: true })
       if (cancelled) return
@@ -149,24 +162,27 @@ export default function App() {
         setNotice('পাঠের ডেটা লোড করা যায়নি। পরে আবার চেষ্টা করুন।')
         return
       }
-      const mapped = courseRows.flatMap(row => {
-        const template = COURSES.find(course => course.slug === row.slug)
-        if (!template) return []
-        return [{
-          ...template,
+      const mapped: Course[] = courseRows.map((row, index) => {
+        const lessonCount = lessonRows.filter(lesson => lesson.course_id === row.id).length
+        return {
+          id: index + 1,
           dbId: row.id,
-          title: row.title_bn,
+          slug: row.slug,
+          title: lang === 'bn' ? row.title_bn : (row.title_en || row.title_bn),
           subject: row.subject,
           grade: `${row.grade_level}ম শ্রেণি`,
-          lessons: lessonRows.filter(lesson => lesson.course_id === row.id).length,
+          lessons: lessonCount,
           progress: 0,
-        }]
+          color: ['violet', 'blue', 'orange', 'green'][index % 4],
+          icon: '📘',
+          duration: `${lessonCount} পাঠ`,
+        }
       })
       setCatalog(mapped)
     }
     void loadCatalog()
     return () => { cancelled = true }
-  }, [])
+  }, [lang])
 
   useEffect(() => {
     if (!userId) {
@@ -397,7 +413,7 @@ export default function App() {
   const askAI = async () => {
     if (!aiQ.trim()) return
     if (!supabase) {
-      setAiAnswer(lang === 'bn' ? 'AI টিউটর চালু করতে Supabase environment সেট করুন।' : 'Configure Supabase environment to enable AI Tutor.')
+      setAiAnswer(lang === 'bn' ? 'AI Tutor কনফিগার করা হয়নি, পরে চেষ্টা করুন' : 'Configure Supabase environment to enable AI Tutor.')
       return
     }
     setAiLoading(true)
@@ -524,7 +540,7 @@ export default function App() {
           <section className="welcome-row">
             <div>
               <div className="eyebrow"><Sparkles size={14} />{lang === 'bn' ? 'প্রিমিয়াম শেখার যাত্রা' : 'PREMIUM JOURNEY'}</div>
-              <h1>{active === 'home' ? t.greeting : nav.find(n => n.id === active)?.label}</h1>
+              <h1>{active === 'home' ? (userId ? (lang === 'bn' ? `আবার স্বাগতম, ${displayName || 'শিক্ষার্থী'}! 👋` : `Welcome back, ${displayName || 'Learner'}! 👋`) : t.greeting) : nav.find(n => n.id === active)?.label}</h1>
               <p>{active === 'home' ? t.sub : (lang === 'bn' ? 'সবকিছু এক জায়গায়।' : 'Everything in one place.')}</p>
             </div>
             <button className="ai-fab" onClick={() => setAiOpen(true)}>
