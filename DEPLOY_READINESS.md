@@ -1,17 +1,23 @@
 # DIBASALA Deployment Readiness
 
-**Status: NOT READY — CI build and artifact verification pending.**
+**Status: DEPLOYED — one security configuration follow-up remains.**
 
 Target: `Shamima-Diba/dibasala`, branch `fix/ready-deploy-final`, Supabase ref `ruamhcchaeogodsltskw`.
 
-Changes on this branch: dynamic published-course catalog with no hard-coded fallback; profile name lookup via `profiles.user_id`; exact Bengali AI configuration error in frontend and Edge Function; six indexes matching live Advisor findings; least-privilege policies that keep code values server-only; CI build log and ZIP artifact packaging.
+## Verified complete
+- CI `npm ci` and `npm run build` passed (GitHub Actions run #48 for commit `b94deceb865200c47dbf086a4c562c8dd7721924`).
+- Published courses are mapped dynamically from `public.courses`; no hard-coded fallback catalog remains.
+- Dashboard display name reads `public.profiles.display_name` by `user_id`.
+- Frontend and Edge Function use the required Bengali AI configuration error while preserving the `{ question: aiQ.trim() }` request payload.
+- Six live Advisor-reported FK indexes were applied and verified.
+- Least-privilege RLS policies were applied and verified; access-code values remain unavailable to authenticated clients.
+- `ai-tutor` Edge Function version 26 is active with JWT verification enabled.
+- Vercel production deployment `dpl_G2oRvVRNxgJuJjFCuQYgASodh3kw` is READY; `https://dibasala.vercel.app/` returned HTTP 200.
+- The production JavaScript asset contains the updated profile and AI message code and no longer contains the hard-coded Arif greeting or course slug template.
 
-## Gates
-- [ ] `npm ci` succeeds.
-- [ ] `npm run build` succeeds.
-- [ ] Build log and ZIP artifact verified.
-- [ ] Migration SQL reviewed against live schema and remote migration history.
-- [ ] Leaked-password protection checked in Supabase Auth settings (not SQL).
-- [ ] Production frontend and Edge Function smoke tests pass.
+## Outstanding
+- Supabase Auth leaked-password protection is still disabled according to Security Advisor. Enable it in the Supabase Dashboard's Authentication password-security settings and rerun the Advisor.
+- Review the Advisor warning for `public.consume_ai_quota()` separately; its authenticated 10/day behavior was preserved.
+- Continue monitoring runtime errors and validate real sign-in, course loading, and AI Tutor flows with a test account.
 
-Do not mark READY until each gate has evidence.
+This report does not claim the remaining Auth setting has been enabled.
