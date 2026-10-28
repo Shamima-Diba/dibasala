@@ -24,14 +24,14 @@ type Course = {
 
 const COURSES: Course[] = [
   { id: 1, slug: 'algebra-foundations', title: 'গণিত: বীজগণিতের ভিত্তি', subject: 'গণিত', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'violet', icon: '∑', duration: '১০ মিনিট' },
-  { id: 2, slug: 'force-and-motion', title: 'পদার্থবিজ্ঞান: বল ও গতি', subject: 'বিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'blue', icon: '⚛', duration: '১০ মিনিট' },
+  { id: 2, slug: 'force-and-motion', title: 'SSC পদার্থবিজ্ঞান: ভৌত রাশি, গতি ও বল', subject: 'বিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 3, progress: 0, color: 'blue', icon: '⚛', duration: '৩ অধ্যায়' },
   { id: 3, slug: 'english-grammar-essentials', title: 'ইংরেজি Grammar Essentials', subject: 'ইংরেজি', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'orange', icon: 'Aa', duration: '১০ মিনিট' },
   { id: 4, slug: 'bangladesh-world-identity', title: 'বাংলাদেশ ও বিশ্বপরিচয়', subject: 'সমাজবিজ্ঞান', grade: '৯ম শ্রেণি', lessons: 1, progress: 0, color: 'green', icon: '🌏', duration: '১০ মিনিট' },
 ]
 
 const bn = {
   home: 'হোম', learn: 'শিখুন', library: 'লাইব্রেরি', progress: 'অগ্রগতি', offline: 'অফলাইন',
-  greeting: 'আবার স্বাগতম, আরিফ! 👋', sub: 'আজ একটু একটু করে এগিয়ে যাওয়াই বড় সাফল্য।',
+  greeting: 'আবার স্বাগতম! 👋', sub: 'আজ একটু একটু করে এগিয়ে যাওয়াই বড় সাফল্য।',
   search: 'কী শিখতে চাও? বিষয় বা কোর্স খুঁজুন', continue: 'পড়াশোনা চালিয়ে যাও', seeAll: 'সব দেখুন',
   today: 'আজকের লক্ষ্য', minutes: 'মিনিট পড়া', streak: 'ধারাবাহিকতা', completed: 'সম্পন্ন পাঠ',
   recommended: 'তোমার জন্য সাজেস্ট', all: 'সব', math: 'গণিত', science: 'বিজ্ঞান', english: 'ইংরেজি', social: 'সমাজ',
@@ -45,10 +45,14 @@ const bn = {
 }
 
 type Lesson = { id: string; course_id: string; title_bn: string; title_en: string | null; body_markdown: string }
+type Quiz = { id: string; course_id: string; lesson_id: string | null; title_bn: string; title_en: string | null; pass_percent: number; status: string }
+type QuizQuestion = { id: string; quiz_id: string; prompt_bn: string; options: { id: string; text_bn: string }[]; sort_order: number }
+type QuizReview = { question_id: string; correct_option_id: string; explanation_bn: string; selected_option_id: string | null; is_correct: boolean }
+type QuizResult = { attempt_id: string; correct_count: number; total_count: number; score_percent: number; passed: boolean; review: QuizReview[] }
 
 const en = {
   home: 'Home', learn: 'Explore', library: 'Library', progress: 'Progress', offline: 'Offline',
-  greeting: 'Welcome back, Arif! 👋', sub: 'Small steps every day lead to big progress.',
+  greeting: 'Welcome back! 👋', sub: 'Small steps every day lead to big progress.',
   search: 'What do you want to learn?', continue: 'Continue learning', seeAll: 'See all',
   today: "Today's goal", minutes: 'Minutes', streak: 'Streak', completed: 'Completed',
   recommended: 'Recommended', all: 'All', math: 'Math', science: 'Science', english: 'English', social: 'Social',
@@ -105,6 +109,15 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false)
   const [authError, setAuthError] = useState('')
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [quizOpen, setQuizOpen] = useState(false)
+  const [quizList, setQuizList] = useState<Quiz[]>([])
+  const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({})
+  const [quizResult, setQuizResult] = useState<QuizResult | null>(null)
+  const [quizLoading, setQuizLoading] = useState(false)
+  const [quizSubmitting, setQuizSubmitting] = useState(false)
+  const [quizError, setQuizError] = useState('')
 
   const t = lang === 'bn' ? bn : en
 
@@ -394,6 +407,86 @@ export default function App() {
     else toast(lang === 'bn' ? 'সাইন আউট হয়েছে' : 'Signed out')
   }
 
+  const openQuizLibrary = async () => {
+    if (!supabase) {
+      toast(lang === 'bn' ? 'Supabase সংযোগ পাওয়া যায়নি।' : 'Supabase connection is unavailable.')
+      return
+    }
+    setQuizOpen(true)
+    setSelectedQuiz(null)
+    setQuizResult(null)
+    setQuizQuestions([])
+    setQuizError('')
+    setQuizLoading(true)
+    try {
+      const { data: course, error: courseError } = await supabase.from('courses')
+        .select('id').eq('slug', 'force-and-motion').eq('status', 'published').maybeSingle()
+      if (courseError) throw courseError
+      if (!course) throw new Error(lang === 'bn' ? 'SSC পদার্থবিজ্ঞান কোর্স পাওয়া যায়নি।' : 'SSC Physics course was not found.')
+      const { data, error } = await supabase.from('quizzes')
+        .select('id, course_id, lesson_id, title_bn, title_en, pass_percent, status')
+        .eq('course_id', course.id).eq('status', 'published').order('created_at', { ascending: true })
+      if (error) throw error
+      setQuizList(data ?? [])
+      if (!data?.length) setQuizError(lang === 'bn' ? 'এখনও কোনো প্রকাশিত কুইজ নেই।' : 'No published quizzes yet.')
+    } catch (error) {
+      setQuizError(error instanceof Error ? error.message : (lang === 'bn' ? 'কুইজ লোড হয়নি।' : 'Could not load quizzes.'))
+    } finally {
+      setQuizLoading(false)
+    }
+  }
+
+  const startQuiz = async (quiz: Quiz) => {
+    if (!supabase) return
+    setSelectedQuiz(quiz)
+    setQuizQuestions([])
+    setQuizAnswers({})
+    setQuizResult(null)
+    setQuizError('')
+    setQuizLoading(true)
+    try {
+      const { data, error } = await supabase.from('quiz_questions')
+        .select('id, quiz_id, prompt_bn, options, sort_order')
+        .eq('quiz_id', quiz.id).order('sort_order', { ascending: true })
+      if (error) throw error
+      setQuizQuestions((data ?? []) as QuizQuestion[])
+      if (!data?.length) setQuizError(lang === 'bn' ? 'এই কুইজে প্রশ্ন নেই।' : 'This quiz has no questions.')
+    } catch (error) {
+      setQuizError(error instanceof Error ? error.message : (lang === 'bn' ? 'প্রশ্ন লোড হয়নি।' : 'Could not load questions.'))
+    } finally {
+      setQuizLoading(false)
+    }
+  }
+
+  const submitQuiz = async () => {
+    if (!supabase || !selectedQuiz || quizSubmitting) return
+    if (!userId) {
+      setQuizError(lang === 'bn' ? 'ফলাফল সংরক্ষণ করতে আগে সাইন ইন করুন।' : 'Sign in first to save your result.')
+      setAuthMode('signin')
+      setAuthOpen(true)
+      return
+    }
+    if (Object.keys(quizAnswers).length !== quizQuestions.length) {
+      setQuizError(lang === 'bn' ? 'সব প্রশ্নের উত্তর দিন।' : 'Please answer every question.')
+      return
+    }
+    setQuizSubmitting(true)
+    setQuizError('')
+    try {
+      const { data, error } = await supabase.rpc('submit_quiz_attempt', {
+        p_quiz_id: selectedQuiz.id,
+        p_answers: quizAnswers,
+      })
+      if (error) throw error
+      setQuizResult(data as QuizResult)
+      toast(lang === 'bn' ? 'কুইজের ফলাফল সংরক্ষণ হয়েছে।' : 'Quiz result saved.')
+    } catch (error) {
+      setQuizError(error instanceof Error ? error.message : (lang === 'bn' ? 'ফলাফল জমা হয়নি।' : 'Could not submit quiz.'))
+    } finally {
+      setQuizSubmitting(false)
+    }
+  }
+
   const askAI = async () => {
     if (!aiQ.trim()) return
     if (!supabase) {
@@ -670,7 +763,7 @@ export default function App() {
               <h2>{t.quick}</h2>
               <p>{lang === 'bn' ? 'এক ট্যাপে দরকারি জায়গায়' : 'Jump into what you need'}</p>
             </div>
-            <button onClick={() => toast(lang === 'bn' ? 'কুইজ শিগগিরই আসছে' : 'Quiz coming soon')}>
+            <button onClick={() => { void openQuizLibrary() }}>
               <span className="quick-icon orange"><Target size={18} /></span>
               <b>{t.quiz}</b>
               <ArrowRight size={15} />
@@ -797,6 +890,63 @@ export default function App() {
                 ))}
               </div>
             )}
+          </section>
+        </div>
+      )}
+
+      {quizOpen && (
+        <div className="ai-overlay" onClick={() => { setQuizOpen(false); setSelectedQuiz(null) }}>
+          <section className="ai-sheet" role="dialog" aria-modal="true" aria-label={lang === 'bn' ? 'SSC পদার্থবিজ্ঞান কুইজ' : 'SSC Physics quizzes'} onClick={event => event.stopPropagation()}>
+            <div className="ai-head">
+              <Target size={20} />
+              <b>{selectedQuiz?.title_bn ?? (lang === 'bn' ? 'SSC পদার্থবিজ্ঞান কুইজ' : 'SSC Physics quizzes')}</b>
+              <button onClick={() => { setQuizOpen(false); setSelectedQuiz(null) }} aria-label="Close"><X size={18} /></button>
+            </div>
+            {quizLoading && <p className="ai-hint">{lang === 'bn' ? 'লোড হচ্ছে…' : 'Loading…'}</p>}
+            {quizError && <p className="auth-error" role="alert">{quizError}</p>}
+            {!selectedQuiz && !quizLoading && quizList.map(quiz => (
+              <button key={quiz.id} className="mini-course" style={{ width: '100%', textAlign: 'left' }} onClick={() => { void startQuiz(quiz) }}>
+                <div className="mini-icon orange"><Target size={17} /></div>
+                <div className="mini-info"><b>{quiz.title_bn}</b><span>{lang === 'bn' ? `পাস নম্বর: ${quiz.pass_percent}%` : `Pass mark: ${quiz.pass_percent}%`}</span></div>
+                <ArrowRight size={15} />
+              </button>
+            ))}
+            {selectedQuiz && !quizResult && !quizLoading && quizQuestions.map((question, index) => (
+              <fieldset key={question.id} style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 12, margin: '12px 0' }}>
+                <legend style={{ padding: '0 6px', fontWeight: 700 }}>{index + 1}. {question.prompt_bn}</legend>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {question.options.map(option => (
+                    <label key={option.id} className="task-row" style={{ cursor: 'pointer', alignItems: 'flex-start' }}>
+                      <input type="radio" name={question.id} value={option.id} checked={quizAnswers[question.id] === option.id}
+                        onChange={() => setQuizAnswers(old => ({ ...old, [question.id]: option.id }))} />
+                      <span className="task-label">{option.id}. {option.text_bn}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+            {selectedQuiz && !quizResult && !quizLoading && quizQuestions.length > 0 && (
+              <button className="auth-submit" disabled={quizSubmitting} onClick={() => { void submitQuiz() }}>
+                {quizSubmitting ? (lang === 'bn' ? 'জমা হচ্ছে…' : 'Submitting…') : (lang === 'bn' ? 'উত্তর জমা দিন' : 'Submit answers')}
+              </button>
+            )}
+            {quizResult && (
+              <div>
+                <h3>{lang === 'bn' ? `আপনার স্কোর: ${quizResult.score_percent}%` : `Your score: ${quizResult.score_percent}%`}</h3>
+                <p className="ai-hint">{lang === 'bn' ? `${quizResult.total_count}টির মধ্যে ${quizResult.correct_count}টি সঠিক। ${quizResult.passed ? 'অভিনন্দন, পাস করেছেন!' : 'আরও অনুশীলন করুন।'}` : `${quizResult.correct_count} of ${quizResult.total_count} correct. ${quizResult.passed ? 'Passed!' : 'Keep practicing.'}`}</p>
+                {quizResult.review.map((item, index) => {
+                  const question = quizQuestions.find(row => row.id === item.question_id)
+                  const correct = question?.options.find(option => option.id === item.correct_option_id)
+                  return <div key={item.question_id} className="ai-answer" style={{ margin: '10px 0', lineHeight: 1.6 }}>
+                    <b>{index + 1}. {question?.prompt_bn}</b>
+                    <p>{item.is_correct ? '✓ ' : '✗ '}{lang === 'bn' ? 'সঠিক উত্তর: ' : 'Correct answer: '}{item.correct_option_id}. {correct?.text_bn}</p>
+                    <p>{item.explanation_bn}</p>
+                  </div>
+                })}
+                <button className="auth-submit" onClick={() => { setSelectedQuiz(null); setQuizResult(null); setQuizQuestions([]); setQuizError('') }}>{lang === 'bn' ? 'অন্য কুইজ বেছে নিন' : 'Choose another quiz'}</button>
+              </div>
+            )}
+            {!userId && selectedQuiz && !quizResult && <p className="ai-hint">{lang === 'bn' ? 'ফলাফল সংরক্ষণ করতে সাইন ইন করতে হবে।' : 'Sign in to save your result.'}</p>}
           </section>
         </div>
       )}
